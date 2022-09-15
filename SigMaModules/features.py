@@ -2,21 +2,9 @@
 """
 Module to work of features in input GenBank or FASTA files
 """
-from Bio.Seq import Seq
 from Bio.SeqFeature import SeqFeature
 from Bio.SeqRecord import SeqRecord
-from typing import List, Union
-import re
-
-
-def format_seq(seq : Union[str, Seq, SeqRecord], width : int = 60) -> str:
-    """
-    Splits seq across multiple lines based on width.
-    :param seq: sequence to format
-    :param width: width of the line
-    """
-
-    return re.sub(r'(.{' + re.escape(str(width)) + '})', '\\1\n', str(seq).upper(), 0, re.DOTALL).strip()
+from typing import List
 
 def get_features_of_type(seqiorec: SeqRecord, ftype: str) -> List[SeqFeature]:
     """
@@ -38,11 +26,11 @@ def get_features_of_type(seqiorec: SeqRecord, ftype: str) -> List[SeqFeature]:
     
     return flist
 
-def cds_to_fasta(cds: SeqFeature) -> str:
+def get_cds_aa(cds: SeqFeature) -> List[str, str]:
     """
     Get amino acid sequence of CDS feature
     :param cds: a SeqFeature object
-    :return: amino acid sequence in FASTA format
+    :return: a list of header and amino acid sequence
     """
     
-    return f">{cds.qualifiers['protein_id'][0]}\n{format_seq(cds.qualifiers['translation'][0])}\n"
+    return [cds.qualifiers['protein_id'][0], cds.qualifiers['translation'][0]]
