@@ -44,7 +44,7 @@ def main():
     ]
 
     ### Run
-    parser.add_argument('-o', '--output', help='Output directory', metavar = '<path>', required=True)
+    parser.add_argument('-o', '--outdir', help='Output directory', metavar = '<path>', required=True)
     parser.add_argument('-t', '--threads', help='Number of threads to use for data preparation [%(default)i]', default = 4, metavar = '<num>', type = int)
     parser.add_argument('-v', '--version', help='Show program\'s version and exit.', action='version', version='%(prog)s 0.1')
     
@@ -88,13 +88,13 @@ def main():
         sys.exit(1)
 
     # make working directory
-    if not os.path.exists(args.output):
-        os.makedirs(args.output)
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
     
     # setup logger
     logFormatter = logging.Formatter(fmt='%(asctime)s [%(levelname)-8.8s]: %(message)s', datefmt='%Y-%m-%d %I:%M:%S')#, filename = os.path.join(args.output, 'log.txt'))
     logger = logging.getLogger()
-    fileHandler = logging.FileHandler(os.path.join(args.output, 'log.txt'))
+    fileHandler = logging.FileHandler(os.path.join(args.outdir, 'log.txt'))
     fileHandler.setFormatter(logFormatter)
     logger.addHandler(fileHandler)
     consoleHandler = logging.StreamHandler()
@@ -104,7 +104,7 @@ def main():
 
     logger.info(f"Starting SigMa analysis")
     logger.debug(f"Command: " + ' '.join(sys.argv))
-    logger.error(f"Output directory: {args.output}")
+    logger.error(f"Output directory: {args.outdir}")
     logger.warning(f"Number of threads: {args.threads}")
     logger.critical(f"Version: {__version__}")
 
