@@ -5,7 +5,7 @@ A helper module with small utility commands.
 import logging
 import subprocess
 import sys
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 def create_logger(log_path):
     """
@@ -97,3 +97,15 @@ def call_process(cmd):
 
     return
 
+def list_databases(dbs : Dict[str, str]) -> str:
+    """
+    List available databases.
+    :param dbs: a dictionary of databases
+    :return: a string of databases
+    """
+
+    for db_type, db_paths in dbs.items():
+        log_progress(f"-- {db_type}")
+        for db_path in db_paths:
+            log_progress(f"   -- {db_path}")
+    

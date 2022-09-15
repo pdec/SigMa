@@ -18,7 +18,6 @@ def format_seq(seq : Union[str, Seq, SeqRecord], width : int = 60) -> str:
 
     return re.sub(r'(.{' + re.escape(str(width)) + '})', '\\1\n', str(seq).upper(), 0, re.DOTALL).strip()
 
-
 def write_fasta(seqs : Union[List, Dict], file_path : str, width : int = 60):
     """
     Write sequences to FASTA file

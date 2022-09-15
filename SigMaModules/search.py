@@ -46,7 +46,7 @@ def make_diamond_db_from_fasta(file_path : str, db_path : str):
     :param db_type: type of DIAMOND database
     """
     if not os.path.exists(db_path):
-        cmd = 'diamond makedb --in {} --db {}'.format(file_path, db_path)
+        cmd = 'diamond makedb --in {} --db {} --quiet'.format(file_path, db_path)
         call_process(cmd)
 
     return

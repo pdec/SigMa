@@ -4,9 +4,9 @@ Module to work of features in input GenBank or FASTA files
 """
 from Bio.SeqFeature import SeqFeature
 from Bio.SeqRecord import SeqRecord
-from typing import List
+from typing import List,Union
 
-def get_features_of_type(seqiorec: SeqRecord, ftype: str) -> List[SeqFeature]:
+def get_features_of_type(seqiorec: Union[SeqRecord, List[SeqRecord]], ftype: str) -> List[SeqFeature]:
     """
     Get features of a given type from SeqRecord
     :param seqiorec: a SeqRecord object
@@ -14,15 +14,18 @@ def get_features_of_type(seqiorec: SeqRecord, ftype: str) -> List[SeqFeature]:
     :return:
     """
 
+    if isinstance(seqiorec, SeqRecord):
+        seqiorec = [seqiorec]
     flist = []
-    for fcnt, feature in enumerate(seqiorec.features, 1):
-        if feature.type == ftype:
-            if ftype == 'CDS':
-                if 'translation' not in feature.qualifiers:
-                    feature.qualifiers['translation'] = [feature.extract(seqiorec.seq).translate(table = 11, to_stop = True)]
-                if 'protein_id' not in feature.qualifiers:
-                    feature.qualifiers['protein_id'] = [f'{seqiorec.id}_ft_{fcnt:06d}']
-            flist.append(feature)
+    for seqrec in seqiorec:
+        for fcnt, feature in enumerate(seqrec.features, 1):
+            if feature.type == ftype:
+                if ftype == 'CDS':
+                    if 'translation' not in feature.qualifiers:
+                        feature.qualifiers['translation'] = [feature.extract(seqrec.seq).translate(table = 11, to_stop = True)]
+                    if 'protein_id' not in feature.qualifiers:
+                        feature.qualifiers['protein_id'] = [f'{seqrec.id}_ft_{fcnt:06d}']
+                flist.append(feature)
     
     return flist
 
