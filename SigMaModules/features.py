@@ -26,7 +26,7 @@ def get_features_of_type(seqiorec: SeqRecord, ftype: str) -> List[SeqFeature]:
     
     return flist
 
-def get_cds_aa(cds: SeqFeature) -> List[str, str]:
+def get_cds_aa(cds: SeqFeature) -> List[str]:
     """
     Get amino acid sequence of CDS feature
     :param cds: a SeqFeature object

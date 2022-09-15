@@ -54,8 +54,6 @@ def log_progress(msg : str, stderr : bool = False, stdout : bool = False, quiet 
             print(msg, file=sys.stderr)
         elif stdout:
             print(msg, file=sys.stdout)
-        else:
-            print(msg)
 
 def colours() -> List[Tuple[str, str]]:
     """

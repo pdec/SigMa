@@ -10,7 +10,7 @@ from .version import __version__
 
 __all__ = [
     'run',
-    'create_logger',' log_progress', 'call_process', 'colours',
+    'create_logger', 'log_progress', 'call_process', 'colours',
     'parse_genbank', 'parse_fasta',
     'get_features_of_type', 'get_cds_aa',
     'format_seq', 'write_fasta', 'write_df_to_artemis', 
