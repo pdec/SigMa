@@ -78,8 +78,8 @@ def main():
     ### Evaluate
     parser_evaluate.add_argument('--max_nt_gap', help='Maximum nucleotide distance between signal [%(default)i]', default = 5000, metavar = ' ', type = int)
     parser_evaluate.add_argument('--min_nt_sig', help='Minimum nucleotide signal within region [%(default)i]', default = 5000, metavar = ' ', type = int)
-    parser_evaluate.add_argument('--max_aa_gap', help='Maximum amino acid distance between signal [%(default)i]', default = 5, metavar = ' ', type = int)
-    parser_evaluate.add_argument('--min_aa_sig', help='Minimum amino acid signal within region [%(default)i]', default = 5, metavar = ' ', type = int)
+    parser_evaluate.add_argument('--max_aa_gap', help='Maximum distance between proteins with signal [%(default)i]', default = 5, metavar = ' ', type = int)
+    parser_evaluate.add_argument('--min_aa_sig', help='Minimum number of proteins with signal within region [%(default)i]', default = 5, metavar = ' ', type = int)
     parser_evaluate.add_argument('--min_sig_frac', help='Minimum fraction of signal within region [%(default).2f]', default = 0.5, metavar = ' ', type = float)
 
     ### Validate
