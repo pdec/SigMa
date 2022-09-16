@@ -25,15 +25,17 @@ def get_features_of_type(seqiorec: Union[SeqRecord, List[SeqRecord]], ftype: str
                         feature.qualifiers['translation'] = [feature.extract(seqrec.seq).translate(table = 11, to_stop = True)]
                     if 'protein_id' not in feature.qualifiers:
                         feature.qualifiers['protein_id'] = [f'{seqrec.id}_ft_{fcnt:06d}']
+                    if 'record_id' not in feature.qualifiers:
+                        feature.qualifiers['record_id'] = [seqrec.id]
                 flist.append(feature)
     
     return flist
 
-def get_cds_aa(cds: SeqFeature) -> List[str]:
+def get_cds_header_and_aa(cds: SeqFeature) -> List[str]:
     """
     Get amino acid sequence of CDS feature
     :param cds: a SeqFeature object
     :return: a list of header and amino acid sequence
     """
     
-    return [cds.qualifiers['protein_id'][0], cds.qualifiers['translation'][0]]
+    return [f"{cds.qualifiers['record_id'][0]}|{cds.qualifiers['protein_id'][0]}|{int(cds.location.nofuzzy_start)}..{cds.location.nofuzzy_end}..{cds.strand}", cds.qualifiers['translation'][0]]

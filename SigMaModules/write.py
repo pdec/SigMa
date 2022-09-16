@@ -36,7 +36,7 @@ def write_fasta(seqs : Union[List, Dict], file_path : str, width : int = 60):
         elif isinstance(seqs, dict):
             for header, seq in seqs.items():
                 if isinstance(seq, SeqRecord):
-                    seq = format_seq(seq.seq)
+                    seq = seq.seq
                 f.write(f">{header}\n{format_seq(seq)}\n")
         else:
             raise TypeError('seqs must be a list tuples or dictionary of sequence header and sequence/SeqRecord objects')

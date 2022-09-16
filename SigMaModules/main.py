@@ -8,7 +8,7 @@ import argparse
 
 from .search import make_db_from_fasta, call_blastn, make_diamond_db_from_fasta, call_diamond, call_hmmsearch, call_mmseqs
 from .read import parse_genbank
-from .features import get_features_of_type, get_cds_aa
+from .features import get_features_of_type, get_cds_header_and_aa
 from .utils import create_logger, log_progress, list_databases
 from .write import write_fasta
 from .version import __version__
@@ -165,24 +165,24 @@ def main():
 
     # parse query datasets
     log_progress(f"Parsing query datasets...")
-    query_nt = os.path.join(query_dir, 'query_nt.fasta')
-    query_aa = os.path.join(query_dir, 'query_aa.fasta')
-    query_records = []
-    query_cds_features = []
+    query_nt_path = os.path.join(query_dir, 'query_nt.fasta')
+    query_aa_path = os.path.join(query_dir, 'query_aa.fasta')
+    query_records = {}
+    query_cds_features = {}
     for query_type, query_dataset_path in zip(args.query_type, args.query):
         if query_type == 'genbank':
-            records = parse_genbank(query_dataset_path)
-            cds_feauters = [get_cds_aa(cds) for cds in get_features_of_type(records, 'CDS')]
-            log_progress(f"Found {len(cds_feauters)} CDS on {len(records)} records in {query_dataset_path}")
-            query_records += records
-            query_cds_features += cds_feauters
+            records = {record.id: record for record in parse_genbank(query_dataset_path)}
+            cds_features = {cds[0]: cds[1] for cds in [get_cds_header_and_aa(cds) for cds in get_features_of_type(records.values(), 'CDS')]}
+            log_progress(f"Found {len(cds_features)} CDS on {len(records)} records in {query_dataset_path}")
+            query_records.update(records)
+            query_cds_features.update(cds_features)
         # elif query_type == 'fasta_nt':
         #     query_records, query_cds_feauters = parse_gbk(query_dataset_path)
     
-    log_progress(f"Extracted {len(cds_feauters)} CDS from {len(records)} records in total")
+    log_progress(f"Extracted {len(cds_features)} CDS from {len(records)} records in total")
     log_progress(f"Writing query FASTA files")
-    write_fasta(query_records, query_nt)
-    write_fasta(query_cds_features, query_aa)
+    write_fasta(query_records, query_nt_path)
+    write_fasta(query_cds_features, query_aa_path)
     # search query datasets
     log_progress(f"Searching query datasets...")
     search_dir = os.path.join(args.outdir, 'search')
@@ -197,7 +197,7 @@ def main():
                     log_progress(f"-- reusing {search_out}")
                 else:
                     log_progress(f"-- searching query nucleotide sequences against {db_name}...")
-                    call_blastn(query_nt, db, search_out, args.nt_evalue, args.nt_pident, args.threads)
+                    call_blastn(query_nt_path, db, search_out, args.nt_evalue, args.nt_pident, args.threads)
         elif ref_type == 'fasta_aa':
             for db in ref_db:
                 db_name = os.path.basename(db)
@@ -206,7 +206,7 @@ def main():
                     log_progress(f"-- reusing {search_out}")
                 else:
                     log_progress(f"-- searching query amino acid sequences against {db_name}...")
-                    call_diamond(query_aa, db, search_out, args.aa_evalue, args.aa_pident, args.aa_qscovs, args.threads)
+                    call_diamond(query_aa_path, db, search_out, args.aa_evalue, args.aa_pident, args.aa_qscovs, args.threads)
         elif ref_type == 'hmm':
             for db in ref_db:
                 db_name = os.path.basename(db)
@@ -215,7 +215,7 @@ def main():
                     log_progress(f"-- reusing {search_out}")
                 else:
                     log_progress(f"-- searching query amino acid sequences against {db_name}...")
-                    call_hmmsearch(query_aa, db, search_out, args.hmm_evalue, args.threads)
+                    call_hmmsearch(query_aa_path, db, search_out, args.hmm_evalue, args.threads)
         elif ref_type == 'mmseqs_db':
             for db in ref_db:
                 db_name = os.path.basename(db)
@@ -224,7 +224,7 @@ def main():
                     log_progress(f"-- reusing {search_out}")
                 else:
                     log_progress(f"-- searching query amino acid sequences against {db_name}...")
-                    call_mmseqs(query_aa, db, search_out, args.mmseqs_sens, args.mmseqs_evalue, args.mmseqs_pident, args.mmseqs_cov, args.threads)
+                    call_mmseqs(query_aa_path, db, search_out, args.mmseqs_sens, args.mmseqs_evalue, args.mmseqs_pident, args.mmseqs_cov, args.threads)
 
     # parse search results
     log_progress(f"Parsing search results...")
