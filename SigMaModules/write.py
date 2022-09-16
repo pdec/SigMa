@@ -29,12 +29,15 @@ def write_fasta(seqs : Union[List, Dict], file_path : str, width : int = 60):
     with open(file_path, 'w') as f:
         if isinstance(seqs, list):
             for seq in seqs:
-                f.write(f">{seq[0]}\n{seq[1]}\n")
+                if isinstance(seq, SeqRecord):
+                    f.write(f">{seq.id}\n{format_seq(seq.seq)}\n")
+                else:
+                    f.write(f">{seq[0]}\n{format_seq(seq[1])}\n")
         elif isinstance(seqs, dict):
             for header, seq in seqs.items():
                 if isinstance(seq, SeqRecord):
-                    seq = seq.seq
-                f.write(f">{header}\n{seq}\n")
+                    seq = format_seq(seq.seq)
+                f.write(f">{header}\n{format_seq(seq)}\n")
         else:
             raise TypeError('seqs must be a list tuples or dictionary of sequence header and sequence/SeqRecord objects')
 

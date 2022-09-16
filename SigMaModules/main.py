@@ -1,5 +1,6 @@
 
 from asyncio.log import logger
+from subprocess import call
 import sys
 import os
 import argparse
@@ -7,8 +8,9 @@ import argparse
 
 from .search import make_db_from_fasta, call_blastn, make_diamond_db_from_fasta, call_diamond, call_hmmsearch, call_mmseqs
 from .read import parse_genbank
-from .features import get_features_of_type
+from .features import get_features_of_type, get_cds_aa
 from .utils import create_logger, log_progress, list_databases
+from .write import write_fasta
 from .version import __version__
 
 
@@ -56,6 +58,7 @@ def main():
     parser_setup.add_argument('-Q', '--query_type', nargs = '+', choices = QUERY_TYPES, help='Query dataset type(s). Allowed types: %(choices)s', metavar = '<type>', type = str, action = 'extend', required = True)
 
     ### Search
+    parser_search.add_argument('--reuse', help='Reuse existing search results', action = 'store_true')
     # nt-based
     parser_search.add_argument('--nt_pident', help='Minimum nucleotide identity [%(default)i]', default = 60, metavar = ' ', type = float)
     parser_search.add_argument('--nt_evalue', help='Maximum nucleotide e-value [%(default)1.0e]', default = 1e-30, metavar = ' ', type = float)
@@ -67,10 +70,10 @@ def main():
     # hmm-based
     parser_search.add_argument('--hmm_evalue', help='Maximum hmm e-value [%(default)1.0e]', default = 1e-10, metavar = ' ', type = float)
     # mmseqs2-based
-    parser_search.add_argument('--mmseqs_sensivitiy', help='MMseqs2 search sensitivity [%(default).1f]', default = 5.7, metavar = ' ', type = float)
+    parser_search.add_argument('--mmseqs_sens', help='MMseqs2 search sensitivity [%(default).1f]', default = 5.7, metavar = ' ', type = float)
     parser_search.add_argument('--mmseqs_evalue', help='MMseqs2 maximum e-value [%(default)1.0e]', default = 1e-5, metavar = ' ', type = float)
     parser_search.add_argument('--mmseqs_pident', help='MMseqs2 minimum amino acid identity [%(default).2f]', default = 0.7, metavar = ' ', type = float)
-    parser_search.add_argument('--mmseqs_coverage', help='MMseqs2 minimum amino acid coverage for clustering [%(default).2f]', default = 0.7, metavar = ' ', type = float)
+    parser_search.add_argument('--mmseqs_cov', help='MMseqs2 minimum amino acid coverage for clustering [%(default).2f]', default = 0.7, metavar = ' ', type = float)
 
     ### Evaluate
     parser_evaluate.add_argument('--max_nt_gap', help='Maximum nucleotide distance between signal [%(default)i]', default = 5000, metavar = ' ', type = int)
@@ -165,19 +168,67 @@ def main():
     query_nt = os.path.join(query_dir, 'query_nt.fasta')
     query_aa = os.path.join(query_dir, 'query_aa.fasta')
     query_records = []
-    query_cds_feauters = []
+    query_cds_features = []
     for query_type, query_dataset_path in zip(args.query_type, args.query):
         if query_type == 'genbank':
             records = parse_genbank(query_dataset_path)
-            cds_feauters = get_features_of_type(records, 'CDS')
+            cds_feauters = [get_cds_aa(cds) for cds in get_features_of_type(records, 'CDS')]
             log_progress(f"Found {len(cds_feauters)} CDS on {len(records)} records in {query_dataset_path}")
             query_records += records
-            query_cds_feauters += cds_feauters
+            query_cds_features += cds_feauters
         # elif query_type == 'fasta_nt':
         #     query_records, query_cds_feauters = parse_gbk(query_dataset_path)
     
-    log_progress(f"Processing {len(cds_feauters)} CDS from {len(records)} records in total")
-    
+    log_progress(f"Extracted {len(cds_feauters)} CDS from {len(records)} records in total")
+    log_progress(f"Writing query FASTA files")
+    write_fasta(query_records, query_nt)
+    write_fasta(query_cds_features, query_aa)
+    # search query datasets
+    log_progress(f"Searching query datasets...")
+    search_dir = os.path.join(args.outdir, 'search')
+    if not os.path.exists(search_dir):
+        os.makedirs(search_dir)
+    for ref_type, ref_db in search_dbs.items():
+        if ref_type == 'fasta_nt':
+            for db in ref_db:
+                db_name = os.path.basename(db)
+                search_out = os.path.join(search_dir, db_name + '.blastn')
+                if args.reuse and os.path.exists(search_out):
+                    log_progress(f"-- reusing {search_out}")
+                else:
+                    log_progress(f"-- searching query nucleotide sequences against {db_name}...")
+                    call_blastn(query_nt, db, search_out, args.nt_evalue, args.nt_pident, args.threads)
+        elif ref_type == 'fasta_aa':
+            for db in ref_db:
+                db_name = os.path.basename(db)
+                search_out = os.path.join(search_dir, db_name + '.diamond')
+                if args.reuse and os.path.exists(search_out):
+                    log_progress(f"-- reusing {search_out}")
+                else:
+                    log_progress(f"-- searching query amino acid sequences against {db_name}...")
+                    call_diamond(query_aa, db, search_out, args.aa_evalue, args.aa_pident, args.aa_qscovs, args.threads)
+        elif ref_type == 'hmm':
+            for db in ref_db:
+                db_name = os.path.basename(db)
+                search_out = os.path.join(search_dir, db_name + '.hmmsearch')
+                if args.reuse and os.path.exists(search_out):
+                    log_progress(f"-- reusing {search_out}")
+                else:
+                    log_progress(f"-- searching query amino acid sequences against {db_name}...")
+                    call_hmmsearch(query_aa, db, search_out, args.hmm_evalue, args.threads)
+        elif ref_type == 'mmseqs_db':
+            for db in ref_db:
+                db_name = os.path.basename(db)
+                search_out = os.path.join(search_dir, db_name + '.mmseqs')
+                if args.reuse and os.path.exists(search_out):
+                    log_progress(f"-- reusing {search_out}")
+                else:
+                    log_progress(f"-- searching query amino acid sequences against {db_name}...")
+                    call_mmseqs(query_aa, db, search_out, args.mmseqs_sens, args.mmseqs_evalue, args.mmseqs_pident, args.mmseqs_cov, args.threads)
+
+    # parse search results
+    log_progress(f"Parsing search results...")
+    log_progress(f"NOT IMPLEMENTED YET")
     
 
 def run():

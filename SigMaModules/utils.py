@@ -2,6 +2,7 @@
 A helper module with small utility commands.
 """
 
+import datetime
 import logging
 import subprocess
 import sys
@@ -13,7 +14,7 @@ def create_logger(log_path):
     :param log_path: path to log file
     """
     # logger
-    logFormatter = logging.Formatter(fmt='%(asctime)s [%(levelname)-8.8s]: %(message)s', datefmt='%Y-%m-%d %I:%M:%S')
+    logFormatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d [%(levelname)-8.8s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('SigMa')
     logger.setLevel(logging.DEBUG)
     # file logger
@@ -93,8 +94,12 @@ def call_process(cmd):
     :param cmd: a command string to run
     """
 
+    log_progress(f"Running: {cmd}")
+    start_time = datetime.datetime.now()
     subprocess.call(cmd, shell=True, universal_newlines=True, bufsize=1, stdout=subprocess.PIPE)
-
+    end_time = datetime.datetime.now()
+    time_taken = end_time - start_time
+    log_progress(f"Time taken: {time_taken}")
     return
 
 def list_databases(dbs : Dict[str, str]) -> str:

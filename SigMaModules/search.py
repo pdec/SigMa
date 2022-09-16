@@ -15,9 +15,9 @@ def make_db_from_fasta(file_path : str, db_path : str, db_type : str):
     :param db_path: path to BLAST database
     :param db_type: type of BLAST database
     """
-    if not os.path.exists(db_path):
-        cmd = 'makeblastdb -in {} -dbtype {} -out {}'.format(file_path, db_type, db_path)
-        call_process(cmd)
+    
+    cmd = 'makeblastdb -in {} -dbtype {} -out {}'.format(file_path, db_type, db_path)
+    call_process(cmd)
 
     return
 
@@ -31,9 +31,9 @@ def call_blastn(file_path : str, db_path : str, outfile_path : str, evalue : flo
     :param pident: percent identity threshold
     :param threads: number of threads
     """
-    if not os.path.exists(outfile_path):
-        cmd = 'blastn -query {} -db {} -out {} -outfmt 6 qaccver saccver pident length sstart send evalue -evalue {} -perc_identity {} -num_threads {} -max_target_seqs 10000'.format(file_path, db_path, outfile_path, evalue, pident, threads)
-        call_process(cmd)
+    
+    cmd = 'blastn -query {} -db {} -out {} -outfmt "6 qaccver saccver pident length sstart send evalue" -evalue {} -perc_identity {} -num_threads {} -max_target_seqs 10000'.format(file_path, db_path, outfile_path, evalue, pident, threads)
+    call_process(cmd)
 
     return 
 
@@ -45,9 +45,9 @@ def make_diamond_db_from_fasta(file_path : str, db_path : str):
     :param db_path: path to DIAMOND database
     :param db_type: type of DIAMOND database
     """
-    if not os.path.exists(db_path):
-        cmd = 'diamond makedb --in {} --db {} --quiet'.format(file_path, db_path)
-        call_process(cmd)
+    
+    cmd = 'diamond makedb --in {} --db {} --quiet'.format(file_path, db_path)
+    call_process(cmd)
 
     return
 
@@ -62,9 +62,9 @@ def call_diamond(file_path : str, db_path : str, outfile_path : str, evalue : fl
     :param qscovs: query and subject coverage threshold
     :param threads: number of threads
     """
-    if not os.path.exists(outfile_path):
-        cmd = 'diamond blastp --query {} --db {} --out {} --outfmt 6 qaccver saccver --evalue {} --id {} --query-cover {} --subject_cover {} --very-sensitive -c1 --threads {} --max-target-seqs 0 --quiet'.format(file_path, db_path, outfile_path, evalue, pident, qscovs, qscovs, threads)
-        call_process(cmd)
+    
+    cmd = 'diamond blastp --query {} --db {} --out {} --outfmt 6 qseqid sseqid evalue pident qcovhsp scovhsp --evalue {} --id {} --query-cover {} --subject-cover {} --very-sensitive -c1 --threads {} --max-target-seqs 0 --quiet'.format(file_path, db_path, outfile_path, evalue, pident, qscovs, qscovs, threads)
+    call_process(cmd)
 
     return
 
@@ -78,9 +78,9 @@ def call_hmmsearch(file_path : str, db_path : str, out_path : str, evalue : floa
     :param evalue: e-value threshold
     :param threads: number of threads
     """
-    if not os.path.exists(out_path):
-        cmd = 'hmmsearch --cpu {} --domtblout {} --noali --notextw -E {} --domE {} {} {}'.format(threads, out_path, evalue, evalue, db_path, file_path)
-        call_process(cmd)
+    
+    cmd = 'hmmsearch --cpu {} --domtblout {} --noali --notextw -E {} --domE {} {} {}'.format(threads, out_path, evalue, evalue, db_path, file_path)
+    call_process(cmd)
 
     return
 
@@ -94,10 +94,10 @@ def call_mmseqs(file_path : str, db_path : str, out_path : str, sensitivity : fl
     :param evalue: e-value threshold
     :param threads: number of threads
     """
-    tmp_path = os.path.join(out_path, 'tmp')
+    tmp_path = os.path.join(f"{out_path}.tmp")
+    results_tsv_path = os.path.join(f"{out_path}.tsv")
     protein_db_path = os.path.join(tmp_path, 'proteindb')
     results_path = os.path.join(tmp_path, 'mmseqs.out')
-    results_tsv_path = results_path + '.tsv'
 
     # create tmp directory
     if not os.path.exists(tmp_path):
