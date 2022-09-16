@@ -28,7 +28,7 @@ def create_logger(log_path):
 
     return logger
 
-def log_progress(msg : str, stderr : bool = False, stdout : bool = False, quiet : bool = False, loglevel = "INFO"):
+def log_progress(msg : str, stderr : bool = False, stdout : bool = False, quiet : bool = False, loglevel : str = "INFO", msglevel : int = 0, msglevelstr : str = "--"):
     """
     Log program execution progress to log file and stdout.
     :param msg: the message to log
@@ -36,8 +36,12 @@ def log_progress(msg : str, stderr : bool = False, stdout : bool = False, quiet 
     :param stdout: log to stdout
     :param quiet: don't log anything
     :param loglevel: the log level to use
+    :param msglevel: additional indentation level
     """
 
+    if msglevel > 0:
+        indent = msglevelstr * msglevel
+        msg = f"{indent} {msg}"
     
     if loglevel == "INFO":
         logging.getLogger('SigMa').info(msg)
@@ -94,12 +98,12 @@ def call_process(cmd):
     :param cmd: a command string to run
     """
 
-    log_progress(f"Running: {cmd}")
+    log_progress(f"running: {cmd}", msglevel=1)
     start_time = datetime.datetime.now()
     subprocess.call(cmd, shell=True, universal_newlines=True, bufsize=1, stdout=subprocess.PIPE)
     end_time = datetime.datetime.now()
     time_taken = end_time - start_time
-    log_progress(f"Time taken: {time_taken}")
+    log_progress(f"time taken: {time_taken}", msglevel=1)
     return
 
 def list_databases(dbs : Dict[str, str]) -> str:
@@ -110,7 +114,7 @@ def list_databases(dbs : Dict[str, str]) -> str:
     """
 
     for db_type, db_paths in dbs.items():
-        log_progress(f"-- {db_type}")
+        log_progress(db_type, msglevel = 1)
         for db_path in db_paths:
-            log_progress(f"   -- {db_path}")
+            log_progress(db_path, msglevel = 2)
     
