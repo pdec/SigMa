@@ -1,6 +1,4 @@
 
-from asyncio.log import logger
-from subprocess import call
 import sys
 import os
 import argparse
@@ -167,13 +165,16 @@ def main():
     log_progress(f"Parsing query datasets...")
     query_nt_path = os.path.join(query_dir, 'query_nt.fasta')
     query_aa_path = os.path.join(query_dir, 'query_aa.fasta')
-    query_records = {}
+    query_records = {} # {'record_id': {'record': SeqRecord, 'cds': []}}
     query_cds_features = {}
     for query_type, query_dataset_path in zip(args.query_type, args.query):
+        log_progress(f"parsing {query_dataset_path}...", msglevel = 1)
         if query_type == 'genbank':
-            records = {record.id: record for record in parse_genbank(query_dataset_path)}
-            cds_features = {cds[0]: cds[1] for cds in [get_cds_header_and_aa(cds) for cds in get_features_of_type(records.values(), 'CDS')]}
-            log_progress(f"Found {len(cds_features)} CDS on {len(records)} records in {query_dataset_path}")
+            for record in parse_genbank(query_dataset_path):
+                query_records[record.id] = {'record': record, 'cds': get_features_of_type(record, 'CDS')}
+                log_progress(f"{record.id}: {len(query_records[record.id]['cds'])} CDSs", msglevel = 2)
+            records = {record.id: {'record': record} for record in parse_genbank(query_dataset_path)}
+            cds_features = {cds[0]: cds[1] for cds in [get_cds_header_and_aa(cds) for cds in query_records[record.id]['cds']]}
             query_records.update(records)
             query_cds_features.update(cds_features)
         # elif query_type == 'fasta_nt':
@@ -181,7 +182,7 @@ def main():
     
     log_progress(f"Extracted {len(cds_features)} CDS from {len(records)} records in total")
     log_progress(f"Writing query FASTA files")
-    write_fasta(query_records, query_nt_path)
+    write_fasta([query_records[record_id]['record'] for record_id in query_records], query_nt_path)
     write_fasta(query_cds_features, query_aa_path)
     # search query datasets
     log_progress(f"Searching query datasets...")
