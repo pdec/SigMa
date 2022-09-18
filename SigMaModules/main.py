@@ -4,9 +4,7 @@ import os
 import argparse
 
 from .query import SigMaQuery
-from .search import make_db_from_fasta, call_blastn, make_diamond_db_from_fasta, call_diamond, call_hmmsearch, call_mmseqs
-from .read import parse_genbank
-from .features import get_features_of_type, get_cds_header_and_aa
+from .reference import SigMaRefNT, SigMaRefAA, SigMaRefHMM, SigMaRefMMSEQS
 from .utils import create_logger, log_progress, list_databases
 from .write import write_fasta
 from .version import __version__
@@ -105,46 +103,20 @@ def main():
     if len(args.reference) != len(args.reference_type) or len(args.query) != len(args.query_type):
         log_progress('Reference and query datasets must be the same length.')
         sys.exit(1)
-    
-    # prepare reference databases
-    log_progress(f"Preparing reference datasets...")
-    ref_datasets_collection = {}
-    for ref_type, ref_dataset_path in zip(args.reference_type, args.reference):
-        if ref_type not in ref_datasets_collection:
-            ref_datasets_collection[ref_type] = [ref_dataset_path]
-        else:
-            ref_datasets_collection[ref_type].append(ref_dataset_path)
-
-    log_progress(f"Reference datasets...")
-    list_databases(ref_datasets_collection)
 
     # make reference directory
     ref_dir = os.path.join(args.outdir, 'reference')
     if not os.path.exists(ref_dir):
         os.makedirs(ref_dir)
     
-    search_dbs = {}
-    for ref_type, ref_datasets in ref_datasets_collection.items():
-        if ref_type not in search_dbs:
-            search_dbs[ref_type] = []
-        for ref_dataset_path in ref_datasets:
-            db_name = os.path.basename(ref_dataset_path)
-            search_db_path = os.path.join(ref_dir, db_name)
-            if ref_type == 'fasta_nt':
-                if not os.path.exists(search_db_path):
-                    log_progress(f"Creating reference nucleotide database from {db_name}...")
-                    make_db_from_fasta(ref_dataset_path, search_db_path, 'nucl')
-                search_dbs[ref_type].append(search_db_path)
-            elif ref_type == 'fasta_aa':
-                if not os.path.exists(search_db_path):
-                    log_progress(f"Creating reference amino acid database from {db_name}...")
-                    make_diamond_db_from_fasta(ref_dataset_path, search_db_path)
-                search_dbs[ref_type].append(search_db_path)
-            elif ref_type == 'hmm' or ref_type == 'mmseqs_db':
-                log_progress(f"Will use {db_name} as reference database.")
-                search_dbs[ref_type].append(ref_dataset_path)
-    log_progress(f"Will use the following databases...")
-    list_databases(search_dbs)
+    # prepare reference databases
+    log_progress(f"Preparing reference datasets...")
+    refs = []
+    for ref_dataset_path, ref_type in zip(args.reference, args.reference_type):
+        if ref_type == 'fasta_nt': refs.append(SigMaRefNT(ref_dataset_path, ref_type, ref_dir))
+        elif ref_type == 'fasta_aa': refs.append(SigMaRefAA(ref_dataset_path, ref_type, ref_dir))
+        elif ref_type == 'hmm': refs.append(SigMaRefHMM(ref_dataset_path, ref_type, ref_dir))
+        elif ref_type == 'mmseqs_db': refs.append(SigMaRefMMSEQS(ref_dataset_path, ref_type, ref_dir))
 
     # prepare query datasets
     log_progress(f"Preparing query datasets...")
@@ -172,43 +144,24 @@ def main():
     search_dir = os.path.join(args.outdir, 'search')
     if not os.path.exists(search_dir):
         os.makedirs(search_dir)
-    for ref_type, ref_db in search_dbs.items():
-        if ref_type == 'fasta_nt':
-            for db in ref_db:
-                db_name = os.path.basename(db)
-                search_out = os.path.join(search_dir, db_name + '.blastn')
-                if args.reuse and os.path.exists(search_out):
-                    log_progress(f"-- reusing {search_out}")
-                else:
-                    log_progress(f"-- searching query nucleotide sequences against {db_name}...")
-                    call_blastn(query_nt_path, db, search_out, args.nt_evalue, args.nt_pident, args.threads)
-        elif ref_type == 'fasta_aa':
-            for db in ref_db:
-                db_name = os.path.basename(db)
-                search_out = os.path.join(search_dir, db_name + '.diamond')
-                if args.reuse and os.path.exists(search_out):
-                    log_progress(f"-- reusing {search_out}")
-                else:
-                    log_progress(f"-- searching query amino acid sequences against {db_name}...")
-                    call_diamond(query_aa_path, db, search_out, args.aa_evalue, args.aa_pident, args.aa_qscovs, args.threads)
-        elif ref_type == 'hmm':
-            for db in ref_db:
-                db_name = os.path.basename(db)
-                search_out = os.path.join(search_dir, db_name + '.hmmsearch')
-                if args.reuse and os.path.exists(search_out):
-                    log_progress(f"-- reusing {search_out}")
-                else:
-                    log_progress(f"-- searching query amino acid sequences against {db_name}...")
-                    call_hmmsearch(query_aa_path, db, search_out, args.hmm_evalue, args.threads)
-        elif ref_type == 'mmseqs_db':
-            for db in ref_db:
-                db_name = os.path.basename(db)
-                search_out = os.path.join(search_dir, db_name + '.mmseqs')
-                if args.reuse and os.path.exists(search_out):
-                    log_progress(f"-- reusing {search_out}")
-                else:
-                    log_progress(f"-- searching query amino acid sequences against {db_name}...")
-                    call_mmseqs(query_aa_path, db, search_out, args.mmseqs_sens, args.mmseqs_evalue, args.mmseqs_pident, args.mmseqs_cov, args.threads)
+
+    for ref in sorted(refs, key = lambda x: x.type):
+        search_out = ref.get_output_path(search_dir)
+        if args.reuse and os.path.exists(search_out):
+            log_progress(f"reusing {search_out}", msglevel=1)
+            continue
+        if ref.type == 'fasta_nt':
+            log_progress(f"searching query nucleotide sequences against {ref.name}...", msglevel=1)
+            ref.search(query_nt_path, search_out, args.nt_evalue, args.nt_pident, args.threads)
+        elif ref.type == 'fasta_aa':
+            log_progress(f"searching query amino acid sequences against {ref.name}...", msglevel=1)
+            ref.search(query_aa_path, search_out, args.aa_evalue, args.aa_pident, args.aa_qscovs, args.threads)
+        elif ref.type == 'hmm':
+            log_progress(f"searching query amino acid sequences against {ref.name}...", msglevel=1)
+            ref.search(query_aa_path, search_out, args.hmm_evalue, args.threads)
+        elif ref.type == 'mmseqs_db':
+            log_progress(f"searching query nucleotide sequences against {ref.name}...", msglevel=1)
+            ref.search(query_aa_path, search_out, args.mmseqs_sens, args.mmseqs_evalue, args.mmseqs_pident, args.mmseqs_cov, args.threads)
 
     # parse search results
     log_progress(f"Parsing search results...")

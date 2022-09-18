@@ -38,7 +38,7 @@ class SigMaQuery:
         SigMaQuery string representation
         """
 
-        return f"{self.file_path} [{self.type}]: {len(self.records)} record{'s' if len(self.records) > 1 else ''} and {len(self.cdss)} CDS{'s' if len(self.cdss) > 1 else ''}"
+        return f"Query: {self.file_path} [{self.type}]: {len(self.records)} record{'s' if len(self.records) > 1 else ''} and {len(self.cdss)} CDS{'s' if len(self.cdss) > 1 else ''}"
 
         
     def records_to_fasta(self) -> str:
