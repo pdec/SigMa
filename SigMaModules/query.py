@@ -8,6 +8,7 @@ from .utils import log_progress
 from .write import format_seq
 
 from Bio.SeqFeature import SeqFeature
+from Bio.SeqRecord import SeqRecord
 from collections import OrderedDict
 from typing import List, Dict, OrderedDict, Tuple
 
@@ -48,7 +49,7 @@ class SigMaQuery:
         """
         fasta = ""
         for record in self.records:
-            fasta += f">{record.id}\n{format_seq(record.seq)}"
+            fasta += f">{record.id}|{len(record.seq)}\n{format_seq(record.seq)}"
 
         return fasta
 
@@ -62,6 +63,36 @@ class SigMaQuery:
             fasta += f">{cds.qualifiers['record_id'][0]}|{cds.qualifiers['protein_id'][0]}|{int(cds.location.nofuzzy_start)}..{cds.location.nofuzzy_end}..{cds.strand}\n{format_seq(cds.qualifiers['translation'][0])}\n"
 
         return fasta
+
+    def has_record(self, record_id : str) -> bool:
+        """
+        Returns True if record_id is in records.
+        :return: bool
+        """
+
+        return record_id in [record.id for record in self.records]
+
+    def get_record(self, record_id : str) -> SeqRecord:
+        """
+        Returns a SeqRecord object
+        :param record_id: SeqRecord id
+        :return: SeqRecord object
+        """
+
+        for record in self.records:
+            if record.id == record_id:
+                return record
+
+    def get_record_lengt(self, record_id) -> int:
+        """
+        Returns the length of a record
+        :param record_id: SeqRecord id
+        :return: int with length
+        """
+
+        for record in self.records:
+            if record.id == record_id:
+                return len(record.seq)
 
     def get_records_ids_and_size(self) -> List[Tuple[str, int]]:
         """
