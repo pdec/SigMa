@@ -18,7 +18,8 @@ def format_seq(seq : Union[str, Seq, SeqRecord], width : int = 60) -> str:
 
     return re.sub(r'(.{' + re.escape(str(width)) + '})', '\\1\n', str(seq).upper(), 0, re.DOTALL).strip()
 
-def write_fasta(seqs : Union[List, Dict], file_path : str, width : int = 60):
+def write_fasta(
+    seqs : Union[List[str], List[SeqRecord], Dict], file_path : str, width : int = 60):
     """
     Write sequences to FASTA file
     :param seqs: list of SeqRecord objects or dictionary of SeqRecord objects
@@ -32,7 +33,7 @@ def write_fasta(seqs : Union[List, Dict], file_path : str, width : int = 60):
                 if isinstance(seq, SeqRecord):
                     f.write(f">{seq.id}\n{format_seq(seq.seq)}\n")
                 else:
-                    f.write(f">{seq[0]}\n{format_seq(seq[1])}\n")
+                    f.write(f"{seq}")
         elif isinstance(seqs, dict):
             for header, seq in seqs.items():
                 if isinstance(seq, SeqRecord):

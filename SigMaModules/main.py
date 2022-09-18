@@ -3,7 +3,7 @@ import sys
 import os
 import argparse
 
-
+from .query import SigMaQuery
 from .search import make_db_from_fasta, call_blastn, make_diamond_db_from_fasta, call_diamond, call_hmmsearch, call_mmseqs
 from .read import parse_genbank
 from .features import get_features_of_type, get_cds_header_and_aa
@@ -118,6 +118,7 @@ def main():
     log_progress(f"Reference datasets...")
     list_databases(ref_datasets_collection)
 
+    # make reference directory
     ref_dir = os.path.join(args.outdir, 'reference')
     if not os.path.exists(ref_dir):
         os.makedirs(ref_dir)
@@ -147,16 +148,11 @@ def main():
 
     # prepare query datasets
     log_progress(f"Preparing query datasets...")
-    query_datasets_collection = {}
+    queries = []
     for query_type, query_dataset_path in zip(args.query_type, args.query):
-        if query_type not in query_datasets_collection:
-            query_datasets_collection[query_type] = [query_dataset_path]
-        else:
-            query_datasets_collection[query_type].append(query_dataset_path)
-
-    log_progress(f"Query datasets...")
-    list_databases(query_datasets_collection)
+        queries.append(SigMaQuery(query_dataset_path, query_type))
     
+    # make query directory
     query_dir = os.path.join(args.outdir, 'query')
     if not os.path.exists(query_dir):
         os.makedirs(query_dir)
@@ -165,25 +161,12 @@ def main():
     log_progress(f"Parsing query datasets...")
     query_nt_path = os.path.join(query_dir, 'query_nt.fasta')
     query_aa_path = os.path.join(query_dir, 'query_aa.fasta')
-    query_records = {} # {'record_id': {'record': SeqRecord, 'cds': []}}
-    query_cds_features = {}
-    for query_type, query_dataset_path in zip(args.query_type, args.query):
-        log_progress(f"parsing {query_dataset_path}...", msglevel = 1)
-        if query_type == 'genbank':
-            for record in parse_genbank(query_dataset_path):
-                query_records[record.id] = {'record': record, 'cds': get_features_of_type(record, 'CDS')}
-                log_progress(f"{record.id}: {len(query_records[record.id]['cds'])} CDSs", msglevel = 2)
-            records = {record.id: {'record': record} for record in parse_genbank(query_dataset_path)}
-            cds_features = {cds[0]: cds[1] for cds in [get_cds_header_and_aa(cds) for cds in query_records[record.id]['cds']]}
-            query_records.update(records)
-            query_cds_features.update(cds_features)
-        # elif query_type == 'fasta_nt':
-        #     query_records, query_cds_feauters = parse_gbk(query_dataset_path)
-    
-    log_progress(f"Extracted {len(cds_features)} CDS from {len(records)} records in total")
+
+    # write FASTA files
     log_progress(f"Writing query FASTA files")
-    write_fasta([query_records[record_id]['record'] for record_id in query_records], query_nt_path)
-    write_fasta(query_cds_features, query_aa_path)
+    write_fasta([q.records_to_fasta() for q in queries], query_nt_path)
+    write_fasta([q.cdss_to_fasta() for q in queries], query_aa_path)
+
     # search query datasets
     log_progress(f"Searching query datasets...")
     search_dir = os.path.join(args.outdir, 'search')
