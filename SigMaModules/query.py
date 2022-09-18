@@ -32,7 +32,10 @@ class SigMaQuery:
                 self.records.append(record)
                 rec_cdss = get_features_of_type(record, 'CDS')
                 self.cdss.extend(rec_cdss)
-                log_progress(f"{record.id}: {len(rec_cdss)} CDSs", msglevel = 1)
+                if len(rec_cdss) == 0:
+                    log_progress(f"{record.id}: {len(rec_cdss)} CDSs", msglevel = 1, loglevel = "WARNING")
+                else:
+                    log_progress(f"{record.id}: {len(rec_cdss)} CDSs", msglevel = 1)
 
     def __str__(self):
         """
@@ -41,6 +44,12 @@ class SigMaQuery:
 
         return f"Query: {self.file_path} [{self.type}]: {len(self.records)} record{'s' if len(self.records) > 1 else ''} and {len(self.cdss)} CDS{'s' if len(self.cdss) > 1 else ''}"
 
+    def __repr__(self):
+        """
+        SigMaQuery representation
+        """
+
+        return f"SigMaQuery('{self.file_path}', '{self.type}')"
         
     def records_to_fasta(self) -> str:
         """
