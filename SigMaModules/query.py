@@ -58,7 +58,7 @@ class SigMaQuery:
         """
         fasta = ""
         for record in self.records:
-            fasta += f">{record.id}|{len(record.seq)}\n{format_seq(record.seq)}"
+            fasta += f">{record.id}|{len(record.seq)}\n{format_seq(record.seq)}\n"
 
         return fasta
 
@@ -92,7 +92,7 @@ class SigMaQuery:
             if record.id == record_id:
                 return record
 
-    def get_record_lengt(self, record_id) -> int:
+    def get_record_length(self, record_id) -> int:
         """
         Returns the length of a record
         :param record_id: SeqRecord id
