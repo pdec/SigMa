@@ -124,7 +124,7 @@ class SigMaRefAA(SigMaRef):
 
         return
 
-    def read_output(self, outfile_path : str, queries : List) -> Tuple[Dict[str, np.ndarray], Dict[str, List]]:
+    def read_output(self, outfile_path : str, queries : List) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
         """
         Read diamond output and return information about regions with signal
         :param file_path: path to diamond output file

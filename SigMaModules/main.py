@@ -6,7 +6,6 @@ import numpy as np
 from typing import List
 
 from .query import SigMaQuery
-from .read import read_blastn, read_diamond
 from .reference import SigMaRefNT, SigMaRefAA, SigMaRefHMM, SigMaRefMMSEQS
 from .utils import create_logger, log_progress, list_databases
 from .write import write_fasta
