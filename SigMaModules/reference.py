@@ -242,3 +242,43 @@ class SigMaRefMMSEQS(SigMaRef):
         shutil.rmtree(tmp_path)
 
         return
+
+    def read_output(self, outfile_path : str, queries : List) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+        """
+        Read MMSEQS output and return information about regions with signal
+        :param file_path: path to MMSEQS output file
+        :param queries: list of SigMaQuery objectss
+        :return: two dictionaries for nucleotide-based signal and proteins with list of similar reference proteins
+        """
+        
+        nt_signal_arrays = {}
+        aa_signal_arrays = {}
+        for line in open(outfile_path, 'r'):
+            if line.startswith('#'):
+                continue
+            else:
+                qseqid, sseqid, alnScore, seqIdentity, eVal, qStart, qEnd, qLen, tStart, tEnd, tLen = line.strip().split('\t')
+                signal = 1 # TODO: add option to use pident, qcovhsp, scovhsp or evalue as signal
+                record_id, protein_id, protein_coords = sseqid.split('|')
+                start, end, strand = map(int, protein_coords.split('..'))
+
+                # get q
+                for q in queries:
+                    if q.has_record(record_id):
+                        break
+                else:
+                    log_progress(f"Record {record_id} not found in queries", loglevel = "WARNING", msglevel = 1)
+
+                # record nt equivalent aa signal
+                if record_id not in nt_signal_arrays:
+                    nt_signal_arrays[record_id] = np.zeros(q.get_record_length(record_id))
+                    aa_signal_arrays[record_id] = np.zeros(q.get_cdss_num_per_record(record_id))
+
+                # record nt signal
+                nt_signal_arrays[record_id][int(start) - 1 : int(end)] += signal
+                # record aa signal
+                aa_signal_arrays[record_id][q.get_cds_order_num(protein_id)] += signal
+                
+
+        return nt_signal_arrays, aa_signal_arrays
+

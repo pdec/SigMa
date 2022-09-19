@@ -197,6 +197,11 @@ def main():
             else:
                 log_progress(f"searching query nucleotide sequences against {ref.name}...", msglevel=1)
                 ref.search(query_aa_path, search_out, args.mmseqs_sens, args.mmseqs_evalue, args.mmseqs_pident, args.mmseqs_cov, args.threads)
+            nt_signal_arrays, aa_signal_arrays = ref.read_output(search_out, queries)
+            signal_group = 'nt_based'
+            update_queries_signal(queries, signal_group, ref.name, nt_signal_arrays)
+            signal_group = 'aa_based'
+            update_queries_signal(queries, signal_group, ref.name, aa_signal_arrays)
 
     # parse search results
     log_progress(f"Summarizing search...")
