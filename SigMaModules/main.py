@@ -2,13 +2,23 @@
 import sys
 import os
 import argparse
+import numpy as np
+from typing import List
 
 from .query import SigMaQuery
+from .read import read_blastn, read_diamond
 from .reference import SigMaRefNT, SigMaRefAA, SigMaRefHMM, SigMaRefMMSEQS
 from .utils import create_logger, log_progress, list_databases
 from .write import write_fasta
 from .version import __version__
 
+def update_queries_signal(queries: List[SigMaQuery], signal_group : str, signal_name : str, signal_arrays : List[np.ndarray]) -> None:
+    """
+    Update the signal of the queries
+    :param queries: list of SigMaQuery objects
+    """
+    for q in queries:
+        q.add_signal(signal_group, signal_name, signal_arrays)
 
 def main():
 
@@ -145,27 +155,46 @@ def main():
     if not os.path.exists(search_dir):
         os.makedirs(search_dir)
 
-    for ref in sorted(refs, key = lambda x: x.type):
+    # ord_map = {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}
+    for ref in sorted(refs, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]): #lambda x: x.type):
         search_out = ref.get_output_path(search_dir)
         if args.reuse and os.path.exists(search_out):
             log_progress(f"reusing {search_out}", msglevel=1)
             continue
+
+        # BLASTN NT
         if ref.type == 'fasta_nt':
             log_progress(f"searching query nucleotide sequences against {ref.name}...", msglevel=1)
             ref.search(query_nt_path, search_out, args.nt_evalue, args.nt_pident, args.threads)
+            signal_group = 'nt_based'
+            nt_signal_arrays = ref.read_output(search_out, args.nt_length)
+            update_queries_signal(queries, signal_group, ref.name, nt_signal_arrays)
+
+        # DIAMOND AA
         elif ref.type == 'fasta_aa':
             log_progress(f"searching query amino acid sequences against {ref.name}...", msglevel=1)
             ref.search(query_aa_path, search_out, args.aa_evalue, args.aa_pident, args.aa_qscovs, args.threads)
+            nt_signal_arrays, aa_signal_arrays = ref.read_output(search_out, queries)
+            signal_group = 'nt_based'
+            update_queries_signal(queries, signal_group, ref.name, nt_signal_arrays)
+            signal_group = 'aa_based'
+            update_queries_signal(queries, signal_group, ref.name, aa_signal_arrays)
+
+        # HMM DB
         elif ref.type == 'hmm':
             log_progress(f"searching query amino acid sequences against {ref.name}...", msglevel=1)
             ref.search(query_aa_path, search_out, args.hmm_evalue, args.threads)
+
+        # MMSEQS HMM DB
         elif ref.type == 'mmseqs_db':
             log_progress(f"searching query nucleotide sequences against {ref.name}...", msglevel=1)
             ref.search(query_aa_path, search_out, args.mmseqs_sens, args.mmseqs_evalue, args.mmseqs_pident, args.mmseqs_cov, args.threads)
 
     # parse search results
-    log_progress(f"Parsing search results...")
-    log_progress(f"NOT IMPLEMENTED YET")
+    log_progress(f"Summarizing search...")
+    for q in queries:
+        log_progress(f"Summarizing {q.file_path}...")
+        q.print_signal_summary()
     
 
 def run():

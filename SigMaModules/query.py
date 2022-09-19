@@ -7,10 +7,10 @@ from .features import get_features_of_type
 from .utils import log_progress
 from .write import format_seq
 
-from Bio.SeqFeature import SeqFeature
 from Bio.SeqRecord import SeqRecord
 from collections import OrderedDict
 from typing import List, Dict, OrderedDict, Tuple
+import numpy as np
 
 class SigMaQuery:
     """This is class for storing information about the query input"""
@@ -23,7 +23,7 @@ class SigMaQuery:
         self.type = input_type
         self.records = []
         self.cdss = []
-        self.singal = {}
+        self.signal = {'nt_based': {}, 'aa_based': {}}
     
         if self.type == 'fasta':
             self.records = parse_fasta(self.file_path)
@@ -37,6 +37,7 @@ class SigMaQuery:
                 else:
                     log_progress(f"{record.id}: {len(rec_cdss)} CDSs", msglevel = 1)
 
+    ### overwriting built in methods ###
     def __str__(self):
         """
         SigMaQuery string representation
@@ -50,7 +51,8 @@ class SigMaQuery:
         """
 
         return f"SigMaQuery('{self.file_path}', '{self.type}')"
-        
+
+    ### to FASTA ###        
     def records_to_fasta(self) -> str:
         """
         Return a fasta string of the query records
@@ -73,6 +75,7 @@ class SigMaQuery:
 
         return fasta
 
+    ### lookup attributes methods ###
     def has_record(self, record_id : str) -> bool:
         """
         Returns True if record_id is in records.
@@ -81,6 +84,15 @@ class SigMaQuery:
 
         return record_id in [record.id for record in self.records]
 
+    def has_signal(self, signal_type : str) -> bool:
+        """
+        Returns True if signal_type is in signal.
+        :return: bool
+        """
+
+        return signal_type in self.signal.keys()
+
+    ### get methods ###
     def get_record(self, record_id : str) -> SeqRecord:
         """
         Returns a SeqRecord object
@@ -140,3 +152,47 @@ class SigMaQuery:
                 cdss_per_record[cds.qualifiers['record_id'][0]] = [cds.qualifiers['protein_id'][0]]
 
         return cdss_per_record
+
+    def get_cds_order_num(self, protein_id) -> int:
+        """
+        Returns the order number of a CDS feature in the query.
+        :param protein_id: CDS protein_id
+        :return: int with order number
+        """
+
+        for i, cds in enumerate(self.cdss):
+            if cds.qualifiers['protein_id'][0] == protein_id:
+                return i
+
+    def print_signal_summary(self) -> None:
+        """
+        Returns a summary of the signals in the query.
+        """
+        
+        for signal_group in self.signal.keys():
+            if len(self.signal[signal_group]) == 0: continue
+            log_progress(f"{signal_group} signal group:", msglevel = 1)
+            for record_id, refs in self.signal[signal_group].items():
+                log_progress(f"{record_id}:", msglevel = 2)
+                for ref, signal in refs.items():
+                    log_progress(f"{ref}: {sum([1 if x else 0 for x in signal])}/{signal.size} of total {sum(signal)}", msglevel = 3)
+
+    ### modify attributes methods ###
+    def add_signal(self, signal_group : str, signal_name : str, signal_arrays : Dict[str, np.ndarray]) -> None:
+        """
+        Add signal array to the query.
+        :param signal_group: signal group
+        :param signal_name: name of the signal
+        :param signal_array: NumPy array with signal values
+        """
+        
+        for record_id, signal_array in signal_arrays.items():
+            if self.has_record(record_id):
+                try:
+                    self.signal[signal_group][record_id][signal_name] = signal_array
+                except KeyError:
+                    try:
+                        self.signal[signal_group][record_id] = {signal_name: signal_array}
+                    except KeyError:
+                        self.signal[signal_group] = {record_id: {signal_name: signal_array}}
+

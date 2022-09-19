@@ -6,6 +6,9 @@ from .utils import log_progress, call_process
 
 import os
 import shutil
+import numpy as np
+
+from typing import Dict, List, Tuple
 
 class SigMaRef():
     """This is class for storing and working on reference datasets"""
@@ -34,10 +37,6 @@ class SigMaRef():
         """
 
         return os.path.join(out_path,f"{self.name}.{self.type}.tsv")
-
-    
-
-
 class SigMaRefNT(SigMaRef):
     """This is class for storing and working on nucleotide reference datasets"""
 
@@ -64,6 +63,37 @@ class SigMaRefNT(SigMaRef):
         
         cmd = 'blastn -query {} -db {} -out {} -outfmt "6 qaccver saccver pident length sstart send evalue" -evalue {} -perc_identity {} -num_threads {} -max_target_seqs 10000'.format(query_path, self.db, outfile_path, evalue, pident, threads)
         call_process(cmd)
+
+    
+    def read_output(self, outfile_path : str, min_nt_length : int) -> Dict[str, np.ndarray]:
+        """
+        Read blastn output and return information about regions with signal
+        :param file_path: path to blastn output file
+        :param min_nt_length: minimum length of the alignment
+        :return: dictionary of nucleotide records ids and numpy arrays with signal covered by the alignment
+        """
+        
+        nt_signal_arrays = {}
+        for line in open(outfile_path, 'r'):
+            if line.startswith('#'):
+                continue
+            else:
+                qaccver, saccver, pident, length, sstart, send, evalue = line.strip().split('\t')
+                signal = 1 # TODO: add option to use pident or evalue as signal
+                record_id, qlength = qaccver.split("|")
+                qlength = int(qlength)
+                
+                if record_id not in nt_signal_arrays:
+                    nt_signal_arrays[record_id] = np.zeros(int(qlength))
+
+                # record nt signal
+                if int(length) >= min_nt_length:
+                    nt_signal_arrays[record_id][int(sstart) - 1 : int(send)] += signal
+
+                        
+
+        return nt_signal_arrays
+
 
 class SigMaRefAA(SigMaRef):
     """This is class for storing and working on amino acid reference datasets"""
@@ -93,6 +123,45 @@ class SigMaRefAA(SigMaRef):
         call_process(cmd)
 
         return
+
+    def read_output(self, outfile_path : str, queries : List) -> Tuple[Dict[str, np.ndarray], Dict[str, List]]:
+        """
+        Read diamond output and return information about regions with signal
+        :param file_path: path to diamond output file
+        :param queries: list of SigMaQuery objectss
+        :return: two dictionaries for nucleotide-based signal and proteins with list of similar reference proteins
+        """
+        
+        nt_signal_arrays = {}
+        aa_signal_arrays = {}
+        for line in open(outfile_path, 'r'):
+            if line.startswith('#'):
+                continue
+            else:
+                qseqid, sseqid, evalue, pident, qcovhsp, scovhsp = line.strip().split('\t')
+                signal = 1 # TODO: add option to use pident, qcovhsp, scovhsp or evalue as signal
+                record_id, protein_id, protein_coords = qseqid.split('|')
+                start, end, strand = map(int, protein_coords.split('..'))
+
+                # get q
+                for q in queries:
+                    if q.has_record(record_id):
+                        break
+                else:
+                    log_progress(f"Record {record_id} not found in queries", loglevel = "WARNING", msglevel = 1)
+
+                # record nt equivalent aa signal
+                if record_id not in nt_signal_arrays:
+                    nt_signal_arrays[record_id] = np.zeros(q.get_record_length(record_id))
+                    aa_signal_arrays[record_id] = np.zeros(q.get_cdss_num_per_record(record_id))
+
+                # record nt signal
+                nt_signal_arrays[record_id][int(start) - 1 : int(end)] += signal
+                # record aa signal
+                aa_signal_arrays[record_id][q.get_cds_order_num(protein_id)] += signal
+                
+
+        return nt_signal_arrays, aa_signal_arrays
 
 
 class SigMaRefHMM(SigMaRef):
