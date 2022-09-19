@@ -157,22 +157,25 @@ def main():
     # ord_map = {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}
     for ref in sorted(refs, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]): #lambda x: x.type):
         search_out = ref.get_output_path(search_dir)
-        if args.reuse and os.path.exists(search_out):
-            log_progress(f"reusing {search_out}", msglevel=1)
-            continue
 
         # BLASTN NT
         if ref.type == 'fasta_nt':
-            log_progress(f"searching query nucleotide sequences against {ref.name}...", msglevel=1)
-            ref.search(query_nt_path, search_out, args.nt_evalue, args.nt_pident, args.threads)
+            if args.reuse and os.path.exists(search_out):
+                log_progress(f"reusing {search_out}", msglevel=1)
+            else:
+                log_progress(f"searching query nucleotide sequences against {ref.name}...", msglevel=1)
+                ref.search(query_nt_path, search_out, args.nt_evalue, args.nt_pident, args.threads)
             signal_group = 'nt_based'
             nt_signal_arrays = ref.read_output(search_out, args.nt_length)
             update_queries_signal(queries, signal_group, ref.name, nt_signal_arrays)
 
         # DIAMOND AA
         elif ref.type == 'fasta_aa':
-            log_progress(f"searching query amino acid sequences against {ref.name}...", msglevel=1)
-            ref.search(query_aa_path, search_out, args.aa_evalue, args.aa_pident, args.aa_qscovs, args.threads)
+            if args.reuse and os.path.exists(search_out):
+                log_progress(f"reusing {search_out}", msglevel=1)
+            else:
+                log_progress(f"searching query amino acid sequences against {ref.name}...", msglevel=1)
+                ref.search(query_aa_path, search_out, args.aa_evalue, args.aa_pident, args.aa_qscovs, args.threads)
             nt_signal_arrays, aa_signal_arrays = ref.read_output(search_out, queries)
             signal_group = 'nt_based'
             update_queries_signal(queries, signal_group, ref.name, nt_signal_arrays)
@@ -181,13 +184,19 @@ def main():
 
         # HMM DB
         elif ref.type == 'hmm':
-            log_progress(f"searching query amino acid sequences against {ref.name}...", msglevel=1)
-            ref.search(query_aa_path, search_out, args.hmm_evalue, args.threads)
+            if args.reuse and os.path.exists(search_out):
+                log_progress(f"reusing {search_out}", msglevel=1)
+            else:
+                log_progress(f"searching query amino acid sequences against {ref.name}...", msglevel=1)
+                ref.search(query_aa_path, search_out, args.hmm_evalue, args.threads)
 
         # MMSEQS HMM DB
         elif ref.type == 'mmseqs_db':
-            log_progress(f"searching query nucleotide sequences against {ref.name}...", msglevel=1)
-            ref.search(query_aa_path, search_out, args.mmseqs_sens, args.mmseqs_evalue, args.mmseqs_pident, args.mmseqs_cov, args.threads)
+            if args.reuse and os.path.exists(search_out):
+                log_progress(f"reusing {search_out}", msglevel=1)
+            else:
+                log_progress(f"searching query nucleotide sequences against {ref.name}...", msglevel=1)
+                ref.search(query_aa_path, search_out, args.mmseqs_sens, args.mmseqs_evalue, args.mmseqs_pident, args.mmseqs_cov, args.threads)
 
     # parse search results
     log_progress(f"Summarizing search...")
