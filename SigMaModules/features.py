@@ -39,3 +39,11 @@ def get_cds_header_and_aa(cds: SeqFeature) -> List[str]:
     """
     
     return [f"{cds.qualifiers['record_id'][0]}|{cds.qualifiers['protein_id'][0]}|{int(cds.location.nofuzzy_start)}..{cds.location.nofuzzy_end}..{cds.strand}", cds.qualifiers['translation'][0]]
+
+def get_feature_coords(feature: SeqFeature) -> List[int]:
+    """
+    Get coordinates of a feature
+    :param feature: a SeqFeature object
+    :return: a list of coordinates
+    """
+    return [feature.location.nofuzzy_start, feature.location.nofuzzy_end]
