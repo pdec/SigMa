@@ -3,7 +3,7 @@ Module defining SigMa query class
 """
 
 from .read import parse_fasta, parse_genbank
-from .features import get_features_of_type
+from .features import get_features_of_type, get_feature_coords
 from .utils import log_progress
 from .write import format_seq
 
@@ -11,6 +11,35 @@ from Bio.SeqRecord import SeqRecord
 from collections import OrderedDict
 from typing import List, Dict, OrderedDict, Tuple
 import numpy as np
+
+class SigMaRegion:
+    """Class for handling predicted signal regions"""
+
+    def __init__(self, record : SeqRecord, start : int, end : int, evidence : str, signal : np.ndarray, signal_group : str):
+        self.record = record
+        self.start = start
+        self.end = end
+        self.evidence = evidence
+        self.signal = signal
+        self.signal_group = signal_group
+        self.category = 'prophage'
+        self.status = 'candidate'
+
+    def __repr__(self):
+        return f"{self.record.id} [{self.start}..{self.end}] ({self.get_len()}; {self.get_sig_frac()})"
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __len__(self):
+        return len(self.record.seq)
+    
+    def get_len(self):
+        return self.__len__()
+
+    def get_sig_frac(self):
+        return np.count_nonzero(self.signal) / len(self.signal)
+
 
 class SigMaQuery:
     """This is class for storing information about the query input"""
@@ -24,6 +53,7 @@ class SigMaQuery:
         self.records = []
         self.cdss = []
         self.signal = {'nt_based': {}, 'aa_based': {}}
+        self.regions = {'nt_based': [], 'aa_based': []}
     
         if self.type == 'fasta':
             self.records = parse_fasta(self.file_path)
@@ -171,7 +201,7 @@ class SigMaQuery:
         
         for signal_group in self.signal.keys():
             if len(self.signal[signal_group]) == 0: continue
-            log_progress(f"{signal_group} signal group:", msglevel = 1)
+            log_progress(f"{signal_group} signal group for {self.file_path}:", msglevel = 1)
             for record_id, refs in self.signal[signal_group].items():
                 log_progress(f"{record_id}:", msglevel = 2)
                 for ref, signal in refs.items():
@@ -195,4 +225,100 @@ class SigMaQuery:
                         self.signal[signal_group][record_id] = {signal_name: signal_array}
                     except KeyError:
                         self.signal[signal_group] = {record_id: {signal_name: signal_array}}
+
+    def evaluate(self, max_nt_gap : int, min_nt_signals : int, max_aa_gap : int, min_aa_signals : int, min_sig_frac : float) -> None:
+        """
+        Evaluate signal for each approach and database #TODO allow for combining signal from different approaches
+        :param max_nt_gap: max nt gap between signal
+        :param min_nt_sig: min nt signal
+        :param max_aa_gap: max aa gap between signal
+        :param min_aa_sig: min aa signal
+        :param min_sig_frac: min signal fraction
+        """
+        for signal_group in self.signal.keys():
+            # setup thresholds for signal considerations and regions merging
+            if signal_group == 'nt_based':
+                max_gap_size = max_nt_gap
+                min_sig_signals = min_nt_signals
+            elif signal_group == 'aa_based':
+                max_gap_size = max_aa_gap
+                min_sig_signals = min_aa_signals
+            min_signal_frac = min_sig_frac
+        
+            log_progress(f"{signal_group} evaluation of {self.file_path}...", msglevel = 1)
+            for record_id, refs in self.signal[signal_group].items():
+                for ref, signal_array in refs.items():
+                    cand_cnt = 0
+                    log_progress(f"{record_id} {np.count_nonzero(signal_array)} {'positions' if signal_group == 'nt_based' else 'proteins'} based on {ref}", msglevel = 2)
+                    i_pos = -1
+                    i_gap = -1
+                    pos_len = 0
+                    gap_size = 0
+                    region_length = 0
+                    region_values = []
+
+                    # start searching
+                    for i, v in enumerate(signal_array):
+                        # count positive signal
+                        if v > 0: # >= min_signal_value:
+                            if i_pos == -1: # if that's the first value after negative
+                                i_pos = i
+                                pos_len = 0
+                            pos_len += 1
+                            gap_size = 0
+                        else:
+                            i_gap = i
+                            gap_size += 1
+                            # if the gap is too big check if region can be considered
+                            if (gap_size > max_gap_size):
+                                # if other thresholds are met, consider region
+                                if (pos_len >= min_sig_signals) and (pos_len / (len(region_values) - gap_size + 1) >= min_signal_frac):
+                                    if signal_group == 'nt_based':
+                                        region_start = i_pos
+                                        region_end = i_gap - max_gap_size + 1
+                                    elif signal_group == 'aa_based':
+                                        region_start = get_feature_coords(self.cdss[i_pos])[0]
+                                        region_end = get_feature_coords(self.cdss[i_gap - max_gap_size + 1])[1]
+                                    candidate_region = SigMaRegion(
+                                        record = self.get_record(record_id)[region_start : region_end],
+                                        start = region_start,
+                                        end = region_end,
+                                        evidence = ref,
+                                        signal = signal_array[i_pos : i_gap - max_gap_size + 1],
+                                        signal_group = signal_group
+                                        )
+                                    
+                                    self.regions[signal_group].append(candidate_region)
+                                    cand_cnt += 1
+                                    log_progress(f"{cand_cnt}: {candidate_region}", msglevel = 3)
+                                else:
+                                    # thresholds unmet
+                                    pass
+                                # reset, as maximum gap size reached
+                                i_pos = -1
+                                pos_len = 0
+                                region_values = []
+
+                        region_values.append(v)
+
+                    # when the gap was not big enough at the end, consider the last region
+                    if (gap_size < max_gap_size) and (pos_len >= min_sig_signals) and (pos_len / (len(region_values) - gap_size + 1) >= min_signal_frac):
+                            if signal_group == 'nt_based':
+                                region_start = i_pos
+                                region_end = i_gap - max_gap_size + 1
+                            elif signal_group == 'aa_based':
+                                region_start = get_feature_coords(self.cdss[i_pos])[0]
+                                region_end = get_feature_coords(self.cdss[i_gap - max_gap_size + 1])[1]
+                            candidate_region = SigMaRegion(
+                                record = self.get_record(record_id)[region_start : region_end],
+                                start = region_start,
+                                end = region_end,
+                                evidence = ref,
+                                signal = signal_array[i_pos : i_gap - max_gap_size + 1],
+                                signal_group = signal_group
+                                )
+                                    
+                            self.regions[signal_group].append(candidate_region)
+                            cand_cnt += 1
+                            log_progress(f"{cand_cnt}: {candidate_region}", msglevel = 3)
 

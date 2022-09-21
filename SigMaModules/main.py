@@ -208,7 +208,17 @@ def main():
     for q in queries:
         log_progress(f"Summarizing {q.file_path}...")
         q.print_signal_summary()
+
+    # evaluate query signals
+    log_progress(f"Evaluating query signals...")
+    for q in queries:
+        q.evaluate(args.max_nt_gap, args.min_nt_sig, args.max_aa_gap, args.min_aa_sig, args.min_sig_frac)
     
+    # check if input file is empty or contains no records
+    if len(queries) == 0:
+        log_progress(f"No query datasets found. Exiting.")
+        sys.exit(1)
+        
 
 def run():
     """Run SigMa analysis."""
