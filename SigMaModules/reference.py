@@ -61,7 +61,7 @@ class SigMaRefNT(SigMaRef):
         :param threads: number of threads
         """
         
-        cmd = 'blastn -query {} -db {} -out {} -outfmt "6 qaccver saccver pident length sstart send evalue" -evalue {} -perc_identity {} -num_threads {} -max_target_seqs 10000'.format(query_path, self.db, outfile_path, evalue, pident, threads)
+        cmd = 'blastn -query {} -db {} -out {} -outfmt "6 qaccver saccver pident length qstart qend evalue" -evalue {} -perc_identity {} -num_threads {} -max_target_seqs 10000'.format(query_path, self.db, outfile_path, evalue, pident, threads)
         call_process(cmd)
 
     
@@ -78,7 +78,7 @@ class SigMaRefNT(SigMaRef):
             if line.startswith('#'):
                 continue
             else:
-                qaccver, saccver, pident, length, sstart, send, evalue = line.strip().split('\t')
+                qaccver, saccver, pident, length, qstart, qend, evalue = line.strip().split('\t')
                 signal = 1 # TODO: add option to use pident or evalue as signal
                 record_id, qlength = qaccver.split("|")
                 qlength = int(qlength)
@@ -88,7 +88,7 @@ class SigMaRefNT(SigMaRef):
 
                 # record nt signal
                 if int(length) >= min_nt_length:
-                    nt_signal_arrays[record_id][int(sstart) - 1 : int(send)] += signal
+                    nt_signal_arrays[record_id][int(qstart) - 1 : int(qend)] += signal
 
                         
 
