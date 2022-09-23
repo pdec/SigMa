@@ -222,6 +222,7 @@ def main():
     regions_nt_fastas = []
     for q in queries:
         regions_nt_fastas.extend(q.get_regions_nt_fasta())
+        q.regions_to_artemis_plot(regions_outdir)
     log_progress(f"Writing {regions_nt_fastas.count('>')} regions in total to {regions_nt_path}")
     write_fasta(regions_nt_fastas, regions_nt_path)
 

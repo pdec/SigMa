@@ -5,12 +5,14 @@ Module defining SigMa query class
 from .read import parse_fasta, parse_genbank
 from .features import get_features_of_type, get_feature_coords
 from .utils import log_progress
-from .write import format_seq
+from .write import format_seq, write_df_to_artemis
 
 from Bio.SeqRecord import SeqRecord
 from collections import OrderedDict
 from typing import List, Dict, OrderedDict, Tuple
+import os
 import numpy as np
+import pandas as pd
 
 class SigMaRegion:
     """Class for handling predicted signal regions"""
@@ -215,6 +217,7 @@ class SigMaQuery:
 
         return fastas
     
+    ### print or write methods ###
     def print_signal_summary(self) -> None:
         """
         Returns a summary of the signals in the query.
@@ -227,6 +230,31 @@ class SigMaQuery:
                 log_progress(f"{record_id}:", msglevel = 2)
                 for ref, signal in refs.items():
                     log_progress(f"{ref}: {sum([1 if x else 0 for x in signal])}/{signal.size} of total {sum(signal)}", msglevel = 3)
+
+    def _get_record_signal_df(self, record_id : str) -> pd.DataFrame:
+        """
+        Internal function to make a pandas DataFrame with the signal data.
+        :param record_id: SeqRecord id
+        :return: pandas DataFrame
+        """
+
+        signal_df = pd.DataFrame()
+        signal_group = 'nt_based'
+        for ref, signal in self.signal[signal_group][record_id].items():
+            colname = f"{signal_group}_{ref}"
+            signal_df[colname] = signal
+
+        return signal_df
+        
+    def regions_to_artemis_plot(self, output_dir : str) -> None:
+        """
+        Writes Artemis plot files of the query regions.
+        :param output_dir: output directory
+        """
+
+        for record_id in self.get_records_ids():
+            output_path = os.path.join(output_dir, f"{record_id}.artemis.plot")
+            write_df_to_artemis(self._get_record_signal_df(record_id), output_path)
 
     ### modify attributes methods ###
     def add_signal(self, signal_group : str, signal_name : str, signal_arrays : Dict[str, np.ndarray]) -> None:

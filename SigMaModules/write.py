@@ -42,19 +42,19 @@ def write_fasta(
         else:
             raise TypeError('seqs must be a list tuples or dictionary of sequence header and sequence/SeqRecord objects')
 
-def write_df_to_artemis(df : pd.DataFrame,  filename : str,  colours : List[str] = colours()):
+def write_df_to_artemis(df : pd.DataFrame,  file_path : str,  colours : List[str] = colours()):
     """
     Write and clean dataframe to Artemis graph file
     :param df: Pandas dataframe with base position in first column and values in other columns
-    :param filename: name of the file to write to
+    :param file_path: name of the file to write to
     :return:
     """
-    df.to_csv(filename, sep=' ', index=False)
-    with open(filename, 'r') as f:
+    df.to_csv(file_path, sep=' ', index=True)
+    with open(file_path, 'r') as f:
         lines = f.readlines()
 
-    with open(filename, 'w') as f:
-        header = lines[0].split()[1:]
+    with open(file_path, 'w') as f:
+        header = lines[0].split()
         f.write('# BASE {}\n'.format(' '.join(header)))
 
         colours_rgb = []
