@@ -15,11 +15,11 @@ import numpy as np
 class SigMaRegion:
     """Class for handling predicted signal regions"""
 
-    def __init__(self, record : SeqRecord, start : int, end : int, evidence : str, signal : np.ndarray, signal_group : str):
+    def __init__(self, record : SeqRecord, start : int, end : int, reference : str, signal : np.ndarray, signal_group : str):
         self.record = record
         self.start = start
         self.end = end
-        self.evidence = evidence
+        self.reference = reference
         self.signal = signal
         self.signal_group = signal_group
         self.category = 'prophage'
@@ -39,6 +39,14 @@ class SigMaRegion:
 
     def get_sig_frac(self):
         return np.count_nonzero(self.signal) / len(self.signal)
+
+    def record_to_fasta(self) -> str:
+        """
+        Write a fasta file of the query records
+        :return: FASTA string
+        """
+        header = f"{self.record.id}|{self.start}..{self.end}|{self.reference}|{self.signal_group}|{self.category}|{self.status}"
+        return f">{header}\n{format_seq(self.record.seq)}"
 
 
 class SigMaQuery:
@@ -194,6 +202,20 @@ class SigMaQuery:
             if cds.qualifiers['protein_id'][0] == protein_id:
                 return i
 
+    def get_regions_nt_fasta(self) -> List[str]:
+        """
+        Returns a list of FASTA string of the query regions
+        :return: list of FASTA string
+        """
+
+        fastas = []
+        for signal_group, regions in self.regions.items():
+            log_progress(f"Getting {len(regions)} {signal_group} regions FASTA for {self.file_path}", msglevel = 1)
+            for region in regions:
+                fastas.extend(region.record_to_fasta())
+
+        return fastas
+    
     def print_signal_summary(self) -> None:
         """
         Returns a summary of the signals in the query.
@@ -283,7 +305,7 @@ class SigMaQuery:
                                         record = self.get_record(record_id)[region_start : region_end],
                                         start = region_start,
                                         end = region_end,
-                                        evidence = ref,
+                                        reference = ref,
                                         signal = signal_array[i_pos : i_gap - max_gap_size + 1],
                                         signal_group = signal_group
                                         )
@@ -313,7 +335,7 @@ class SigMaQuery:
                                 record = self.get_record(record_id)[region_start : region_end],
                                 start = region_start,
                                 end = region_end,
-                                evidence = ref,
+                                reference = ref,
                                 signal = signal_array[i_pos : i_gap - max_gap_size + 1],
                                 signal_group = signal_group
                                 )

@@ -206,7 +206,6 @@ def main():
     # parse search results
     log_progress(f"Summarizing search...")
     for q in queries:
-        log_progress(f"Summarizing {q.file_path}...")
         q.print_signal_summary()
 
     # evaluate query signals
@@ -214,11 +213,19 @@ def main():
     for q in queries:
         q.evaluate(args.max_nt_gap, args.min_nt_sig, args.max_aa_gap, args.min_aa_sig, args.min_sig_frac)
     
-    # check if input file is empty or contains no records
-    if len(queries) == 0:
-        log_progress(f"No query datasets found. Exiting.")
-        sys.exit(1)
-        
+    # write regions output files
+    log_progress(f"Writing regions output files...")
+    regions_outdir = os.path.join(args.outdir, 'regions')
+    if not os.path.exists(regions_outdir):
+        os.makedirs(regions_outdir)
+    regions_nt_path = os.path.join(regions_outdir, 'regions_nt.fasta')
+    regions_nt_fastas = []
+    for q in queries:
+        regions_nt_fastas.extend(q.get_regions_nt_fasta())
+    log_progress(f"Writing {regions_nt_fastas.count('>')} regions in total to {regions_nt_path}")
+    write_fasta(regions_nt_fastas, regions_nt_path)
+
+
 
 def run():
     """Run SigMa analysis."""
