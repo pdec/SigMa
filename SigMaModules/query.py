@@ -210,7 +210,6 @@ class SigMaQuery:
 
         fastas = []
         for signal_group, regions in self.regions.items():
-            log_progress(f"Getting {len(regions)} {signal_group} regions FASTA for {self.file_path}", msglevel = 1)
             for region in regions:
                 fastas.extend(region.record_to_fasta())
 
