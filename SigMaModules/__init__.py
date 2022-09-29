@@ -1,6 +1,7 @@
 # create a module named SigMaModules and put the following code in it:
 
 from .main import run
+from .models import SigMa, Target, Query, RecordQuery, Region
 from .query import SigMaQuery
 from .reference import SigMaRefNT, SigMaRefAA, SigMaRefHMM, SigMaRefMMSEQS
 from .utils import create_logger, log_progress, call_process, colours
@@ -11,6 +12,7 @@ from .version import __version__
 
 __all__ = [
     'run',
+    'SigMa', 'Target', 'Query', 'RecordQuery', 'Region',
     'SigMaQuery',
     'SigMaRefNT', 'SigMaRefAA', 'SigMaRefHMM', 'SigMaRefMMSEQS',
     'create_logger', 'log_progress', 'call_process', 'colours',
