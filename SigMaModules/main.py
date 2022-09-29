@@ -7,6 +7,7 @@ from typing import List
 
 from .query import SigMaQuery
 from .reference import SigMaRefNT, SigMaRefAA, SigMaRefHMM, SigMaRefMMSEQS
+from .models import SigMa, Target, Query, RecordQuery, Region
 from .utils import create_logger, log_progress, list_databases
 from .write import write_fasta
 from .version import __version__
@@ -118,6 +119,18 @@ def main():
     if not os.path.exists(ref_dir):
         os.makedirs(ref_dir)
     
+    # declare SigMa object
+    sigma = SigMa(args)
+
+    # add reference datasets
+    sigma.prepare_targets()
+
+    exit()
+    for ref_dataset_path, ref_type in zip(args.reference, args.reference_type):
+        sigma.add_target(ref_dataset_path, ref_type, ref_dir)
+
+
+
     # prepare reference databases
     log_progress(f"Preparing reference datasets...")
     refs = []

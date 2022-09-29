@@ -26,6 +26,21 @@ class SigMa():
         self.record_queries: List[RecordQuery] = []
         self.regions: List[Region] = []
         self.args = args
+
+    ### custom methods ###
+    def prepare_targets(self):
+        for ref_dataset_path, ref_type in zip(self.args.reference, self.args.reference_type):
+            # create target object
+            self.targets.append(
+                Target(
+                    file_path = ref_dataset_path, 
+                    type = ref_type, 
+                    params = self.args)
+                )
+            # prepare database if needed
+            self.targets[-1].prepare(self.args.outdir)
+
+
     
 
 
