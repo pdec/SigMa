@@ -125,6 +125,9 @@ def main():
 
     # search query datasets
     sigma.search_queries()
+
+    # evaluate query datasets
+    sigma.evaluate_signals()
     exit()
     for ref_dataset_path, ref_type in zip(args.reference, args.reference_type):
         sigma.add_target(ref_dataset_path, ref_type, ref_dir)

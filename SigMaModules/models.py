@@ -65,7 +65,6 @@ class SigMa():
             # link RecordQueries
             self.record_queries.extend(self.queries[-1].get_record_queries())
 
-
     def write_fastas(self, fastas : Union[str, List[str]], out_path : str) -> None:
         """
         Write FASTA sequences to file
@@ -127,6 +126,14 @@ class SigMa():
                 # print signal summary
                 record_query.print_signal_summary()
 
+    def evaluate_signals(self) -> None:
+        """
+        Evaluate signals
+        :return: None
+        """
+        log_progress("Evaluating signals...", msglevel = 0, loglevel = "INFO")
+        for record_query in self.record_queries:
+            record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
 class Input():
     """
     General input data class
@@ -540,7 +547,7 @@ class RecordQuery(Record):
 
     def __init__(self, record : SeqRecord):
         super().__init__(record)
-        self.regions = {'nt_based': {}, 'aa_based': {}}
+        self.regions = {'nt_based': [], 'aa_based': []}
         self.signals = {'nt_based': {}, 'aa_based': {}}
 
     ### default methods ###
@@ -609,7 +616,7 @@ class RecordQuery(Record):
         :param min_aa_sig: min aa signal
         :param min_sig_frac: min signal fraction
         """
-        for signal_group in self.signal.keys():
+        for signal_group in self.signals.keys():
             # setup thresholds for signal considerations and regions merging
             if signal_group == 'nt_based':
                 max_gap_size = max_nt_gap
@@ -619,84 +626,82 @@ class RecordQuery(Record):
                 min_sig_signals = min_aa_signals
             min_signal_frac = min_sig_frac
         
-            log_progress(f"{signal_group} evaluation of {self.file_path}...", msglevel = 1)
-            for record_id, refs in self.signal[signal_group].items():
-                for ref, signal_array in refs.items():
-                    cand_cnt = 0
-                    log_progress(f"{record_id} {np.count_nonzero(signal_array)} {'positions' if signal_group == 'nt_based' else 'proteins'} based on {ref}", msglevel = 2)
-                    i_pos = -1
-                    i_gap = -1
-                    pos_len = 0
-                    gap_size = 0
-                    region_length = 0
-                    region_values = []
+            log_progress(f"{signal_group} evaluation of {self.name}...", msglevel = 1)
+            for target, signal_array in self.signals[signal_group].items():
+                cand_cnt = 0
+                log_progress(f"{np.count_nonzero(signal_array)} {'positions' if signal_group == 'nt_based' else 'proteins'} based on {target}", msglevel = 2)
+                i_pos = -1
+                i_gap = -1
+                pos_len = 0
+                gap_size = 0
+                region_values = []
 
-                    # start searching
-                    for i, v in enumerate(signal_array):
-                        # count positive signal
-                        if v > 0: # >= min_signal_value:
-                            if i_pos == -1: # if that's the first value after negative
-                                i_pos = i
-                                pos_len = 0
-                            pos_len += 1
-                            gap_size = 0
-                        else:
-                            i_gap = i
-                            gap_size += 1
-                            # if the gap is too big check if region can be considered
-                            if (gap_size > max_gap_size):
-                                # if other thresholds are met, consider region
-                                if (pos_len >= min_sig_signals) and (pos_len / (len(region_values) - gap_size + 1) >= min_signal_frac):
-                                    if signal_group == 'nt_based':
-                                        region_start = i_pos
-                                        region_end = i_gap - max_gap_size + 1
-                                    elif signal_group == 'aa_based':
-                                        region_start = get_feature_coords(self.cdss[i_pos])[0]
-                                        region_end = get_feature_coords(self.cdss[i_gap - max_gap_size + 1])[1]
-                                    candidate_region = Region(
-                                        record = self.get_record(record_id)[region_start : region_end],
-                                        name = f"{record_id}|{ref}|{cand_cnt}",
-                                        start = region_start,
-                                        end = region_end,
-                                        reference = ref,
-                                        signal = signal_array[i_pos : i_gap - max_gap_size + 1],
-                                        signal_group = signal_group
-                                        )
-                                    
-                                    self.regions[signal_group].append(candidate_region)
-                                    cand_cnt += 1
-                                    log_progress(f"{cand_cnt}: {candidate_region}", msglevel = 3)
-                                else:
-                                    # thresholds unmet
-                                    pass
-                                # reset, as maximum gap size reached
-                                i_pos = -1
-                                pos_len = 0
-                                region_values = []
+                # start searching
+                for i, v in enumerate(signal_array):
+                    # count positive signal
+                    if v > 0: # >= min_signal_value:
+                        if i_pos == -1: # if that's the first value after negative
+                            i_pos = i
+                            pos_len = 0
+                        pos_len += 1
+                        gap_size = 0
+                    else:
+                        i_gap = i
+                        gap_size += 1
+                        # if the gap is too big check if region can be considered
+                        if (gap_size > max_gap_size):
+                            # if other thresholds are met, consider region
+                            if (pos_len >= min_sig_signals) and (pos_len / (len(region_values) - gap_size + 1) >= min_signal_frac):
+                                if signal_group == 'nt_based':
+                                    region_start = i_pos
+                                    region_end = i_gap - max_gap_size + 1
+                                elif signal_group == 'aa_based':
+                                    region_start = get_feature_coords(self.cdss[i_pos])[0]
+                                    region_end = get_feature_coords(self.cdss[i_gap - max_gap_size + 1])[1]
+                                candidate_region = Region(
+                                    record = self.get_record()[region_start : region_end],
+                                    name = f"{self.record.id}|{target}|{signal_group}|{cand_cnt}|{region_start + 1}..{region_end}",
+                                    start = region_start,
+                                    end = region_end,
+                                    signal_source = target,
+                                    signal = signal_array[i_pos : i_gap - max_gap_size + 1],
+                                    signal_group = signal_group
+                                    )
+                                
+                                self.regions[signal_group].append(candidate_region)
+                                cand_cnt += 1
+                                log_progress(f"{cand_cnt}: {candidate_region}", msglevel = 3)
+                            else:
+                                # thresholds unmet
+                                pass
+                            # reset, as maximum gap size reached
+                            i_pos = -1
+                            pos_len = 0
+                            region_values = []
 
-                        region_values.append(v)
+                    region_values.append(v)
 
-                    # when the gap was not big enough at the end, consider the last region
-                    if (gap_size < max_gap_size) and (pos_len >= min_sig_signals) and (pos_len / (len(region_values) - gap_size + 1) >= min_signal_frac):
-                            if signal_group == 'nt_based':
-                                region_start = i_pos
-                                region_end = i_gap - max_gap_size + 1
-                            elif signal_group == 'aa_based':
-                                region_start = get_feature_coords(self.cdss[i_pos])[0]
-                                region_end = get_feature_coords(self.cdss[i_gap - max_gap_size + 1])[1]
-                            candidate_region = Region(
-                                record = self.get_record(record_id)[region_start : region_end],
-                                name = f"{record_id}|{ref}|{cand_cnt}",
-                                start = region_start,
-                                end = region_end,
-                                reference = ref,
-                                signal = signal_array[i_pos : i_gap - max_gap_size + 1],
-                                signal_group = signal_group
-                                )
-                                    
-                            self.regions[signal_group].append(candidate_region)
-                            cand_cnt += 1
-                            log_progress(f"{cand_cnt}: {candidate_region}", msglevel = 3)
+                # when the gap was not big enough at the end, consider the last region
+                if (gap_size < max_gap_size) and (pos_len >= min_sig_signals) and (pos_len / (len(region_values) - gap_size + 1) >= min_signal_frac):
+                        if signal_group == 'nt_based':
+                            region_start = i_pos
+                            region_end = i_gap - max_gap_size + 1
+                        elif signal_group == 'aa_based':
+                            region_start = get_feature_coords(self.cdss[i_pos])[0]
+                            region_end = get_feature_coords(self.cdss[i_gap - max_gap_size + 1])[1]
+                        candidate_region = Region(
+                            record = self.get_record()[region_start : region_end],
+                            name = f"{self.record.id}|{target}|{signal_group}|{cand_cnt}|{region_start + 1}..{region_end}",
+                            start = region_start,
+                            end = region_end,
+                            signal_source = target,
+                            signal = signal_array[i_pos : i_gap - max_gap_size + 1],
+                            signal_group = signal_group
+                            )
+                                
+                        self.regions[signal_group].append(candidate_region)
+                        cand_cnt += 1
+                        log_progress(f"{cand_cnt}: {candidate_region}", msglevel = 3)
 
 
 class Region(Record):
@@ -704,18 +709,20 @@ class Region(Record):
     Region class
     """
 
-    def __init__(self, record : SeqRecord, name : str, start : int, end : int, signal_source : str, category : str = 'prophage', status : str = 'candidate'):
+    def __init__(self, record : SeqRecord, name : str, start : int, end : int, signal : np.ndarray, signal_source : str, signal_group : str, category : str = 'prophage', status : str = 'candidate'):
         self.record = record
         self.name = name
         self.start = start
         self.end = end
+        self.signal = signal
         self.signal_source = signal_source
+        self.signal_group = signal_group
         self.category = category
         self.status = status
 
     ### default methods ###
     def __repr__(self):
-        return f"{self.record.id}[{self.start}..{self.end}] {self.name} ({self.len()}; {self.get_sig_frac()})"
+        return f"{self.name} ({self.len()}; {self.get_sig_frac():0.2f})"
 
     def __str__(self):
         return self.__repr__()
