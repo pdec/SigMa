@@ -134,6 +134,11 @@ class SigMa():
         log_progress("Evaluating signals...", msglevel = 0, loglevel = "INFO")
         for record_query in self.record_queries:
             record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
+            for regions in record_query.get_regions().values():
+                self.regions.extend(regions)
+
+        log_progress(f"In total {len(self.regions)} were identified", msglevel = 0, loglevel = "INFO")
+
 class Input():
     """
     General input data class
@@ -560,6 +565,12 @@ class RecordQuery(Record):
         return f"RecordQuery({self.name})"
 
     ### get methods ###
+    def get_regions(self):
+        """
+        Return list of regions
+        """
+        return self.regions
+
     def _get_signal_df(self) -> pd.DataFrame:
         """
         Internal function to make a pandas DataFrame with the signal data.
