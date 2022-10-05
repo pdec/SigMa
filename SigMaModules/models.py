@@ -46,16 +46,14 @@ class SigMa():
                     )
                 )
             # prepare database if needed
-            self.targets[-1].prepare(self.args.outdir)
+            self.targets[-1].prepare(ref_dir)
+
+        log_progress("Prepared targets")
+        for target in self.targets:
+            log_progress(f"{target}", msglevel = 1, loglevel = "INFO")
 
     def prepare_queries(self):
         log_progress("Preparing queries...", msglevel = 0, loglevel = "INFO")
-        # prepare directory and output files paths
-        query_dir = os.path.join(self.args.outdir, 'query')
-        if not os.path.exists(query_dir): os.makedirs(query_dir)
-        query_nt_path = os.path.join(query_dir, 'query_nt.fasta')
-        query_aa_path = os.path.join(query_dir, 'query_aa.fasta')
-
         for query_type, query_dataset_path in zip(self.args.query_type, self.args.query):
             self.queries.append(
                 # create Query object
@@ -67,18 +65,18 @@ class SigMa():
             # link RecordQueries
             self.record_queries.extend(self.queries[-1].get_record_queries())
 
-        # prepare query files
-        log_progress(f"Writing query FASTA files")
-        self.write_fastas([q.get_fasta_nt() for q in self.record_queries], query_nt_path)
-        self.write_fastas([q.get_fasta_aa() for q in self.record_queries], query_aa_path)
 
-    def write_fastas(self, fastas : List[str], out_path : str) -> None:
+    def write_fastas(self, fastas : Union[str, List[str]], out_path : str) -> None:
         """
         Write FASTA sequences to file
         :param fastas: list of FASTA sequences
         :param out_path: path to output file
         :return: None
         """
+
+        if isinstance(fastas, str):
+            fastas = [fastas]
+
         cnt = 0
         with open(out_path, 'w') as out:
             for fasta in fastas:
@@ -86,6 +84,48 @@ class SigMa():
                 cnt += fasta.count('>')
         
         log_progress(f"wrote {cnt} sequences to {out_path}", msglevel = 1)
+
+    def search_queries(self) -> None:
+        """
+        Search queries against references
+        :return: None
+        """
+        log_progress("Searching queries...", msglevel = 0, loglevel = "INFO")
+        # prepare directory and output files paths
+        query_dir = os.path.join(self.args.outdir, 'query')
+        if not os.path.exists(query_dir): os.makedirs(query_dir)
+        search_dir = os.path.join(self.args.outdir, 'search')
+        if not os.path.exists(search_dir): os.makedirs(search_dir)
+
+        # search queries
+        for qi, query in enumerate(self.queries, 1):
+            for rqi, record_query in enumerate(query.get_record_queries(), 1):
+                # prepare query files
+                log_progress(f"Searching {record_query}", msglevel = 0, loglevel = "INFO")
+                query_nt_path = os.path.join(query_dir, f'q{qi}_r{rqi}_nt.fasta')
+                query_aa_path = os.path.join(query_dir, f'q{qi}_r{rqi}_aa.fasta')
+                output_prefix = os.path.join(search_dir, f'q{qi}_r{rqi}')
+                self.write_fastas(record_query.get_fasta_nt(), query_nt_path)
+                self.write_fastas(record_query.get_fasta_aa(), query_aa_path)
+
+                for target in sorted(self.targets, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]):
+                    # search query against target
+                    if target.type == 'fasta_nt':
+                        target.search(query_nt_path, output_prefix)
+                    else:
+                        target.search(query_aa_path, output_prefix)
+
+                    # parse search results
+                    nt_signal_array, aa_signal_array = target.read_output(record_query)
+                    signal_group = 'nt_based'
+                    if nt_signal_array is not None:
+                        record_query.add_signal(signal_group, target.name, nt_signal_array)
+                    if aa_signal_array is not None and target.type != 'fasta_nt':
+                        signal_group = 'aa_based'
+                        record_query.add_signal(signal_group, target.name, aa_signal_array)
+                
+                # print signal summary
+                record_query.print_signal_summary()
 
 class Input():
     """
@@ -106,7 +146,7 @@ class Target(Input):
         super().__init__(file_path, type, name)
         self.params = params
         self.db_path = ''
-        self.output_path = ''
+        self.output_paths = []
 
     ### default methods ###
     def __str__(self):
@@ -114,7 +154,7 @@ class Target(Input):
         String representation of SigMaRef
         """
 
-        return f"Reference: {self.db} [{self.type}]"
+        return f"Reference: {self.name} [{self.type}]"
 
     ### custom methods ###
     def prepare(self, outdir_path : str):
@@ -126,7 +166,6 @@ class Target(Input):
         log_progress(f"Creating reference nucleotide database from {self.name}...", 1)
         # set db_path and results_path
         self.db_path = os.path.join(outdir_path, f"{self.name}.db")
-        self.outfile_path = os.path.join(outdir_path,f"{self.name}.{self.type}.tsv")
 
         if self.type == 'fasta_nt':
             cmd = 'makeblastdb -in {} -dbtype nucl -out {}'.format(self.file_path, self.db_path)
@@ -134,27 +173,34 @@ class Target(Input):
         elif self.type == 'fasta_aa':
             cmd = 'diamond makedb --in {} --db {} --quiet'.format(self.file_path, self.db_path)
             call_process(cmd)
-        elif self.type == 'mmsqes_db':
+        elif self.type == 'mmseqs_db':
             self.db_path = self.file_path        
 
-    def search(self, query_path : str):
+    def search(self, query_path : str, output_prefix : str):
         """
         Run search
         :param query_path: path to FASTA file
         """
         
-        log_progress(f"Searching {self.name} with {query_path}...", 1)
+        self.output_paths.append(f"{output_prefix}.{self.name}.{self.type}.tsv")
+        output_path = self.output_paths[-1]
+
+        if self.params.reuse and os.path.exists(output_path):
+            log_progress(f"reusing {output_path}", msglevel=1)
+            return
+        else:
+            log_progress(f"searching {self.name} with {query_path}...", msglevel = 1)
 
         if self.type == 'fasta_nt':
-            cmd = 'blastn -query {} -db {} -out {} -outfmt "6 qaccver saccver pident length qstart qend evalue" -evalue {} -perc_identity {} -num_threads {} -max_target_seqs 10000'.format(query_path, self.db_path, self.output_path, self.params.nt_evalue, self.params.nt_pident, self.params.threads)
+            cmd = 'blastn -query {} -db {} -out {} -outfmt "6 qaccver saccver pident length qstart qend evalue" -evalue {} -perc_identity {} -num_threads {} -max_target_seqs 10000'.format(query_path, self.db_path, output_path, self.params.nt_evalue, self.params.nt_pident, self.params.threads)
             call_process(cmd)
 
         elif self.type == 'fasta_aa':
-            cmd = 'diamond blastp --query {} --db {} --out {} --outfmt 6 qseqid sseqid evalue pident qcovhsp scovhsp --evalue {} --id {} --query-cover {} --subject-cover {} --very-sensitive -c1 --threads {} --max-target-seqs 0 --quiet'.format(query_path, self.db_path, self.output_path, self.params.aa_evalue, self.params.aa_pident, self.params.aa_qscovs, self.params.aa_qscovs, self.params.threads)
+            cmd = 'diamond blastp --query {} --db {} --out {} --outfmt 6 qseqid sseqid evalue pident qcovhsp scovhsp --evalue {} --id {} --query-cover {} --subject-cover {} --very-sensitive -c1 --threads {} --max-target-seqs 0 --quiet'.format(query_path, self.db_path, output_path, self.params.aa_evalue, self.params.aa_pident, self.params.aa_qscovs, self.params.aa_qscovs, self.params.threads)
             call_process(cmd)
 
         elif self.type == 'mmseqs_db':
-            outdir = os.path.dirname(self.output_path)
+            outdir = os.path.dirname(output_path)
             tmp_path = os.path.join(outdir, f"mmseqs_tmp")
             protein_db_path = os.path.join(tmp_path, 'proteindb')
             results_path = os.path.join(tmp_path, 'mmseqs.out')
@@ -172,7 +218,7 @@ class Target(Input):
             call_process(cmd)
 
             # create a results tsv file
-            cmd = f"mmseqs createtsv {self.db} {protein_db_path} {results_path} {self.output_path}"
+            cmd = f"mmseqs createtsv {self.db_path} {protein_db_path} {results_path} {output_path}"
             call_process(cmd)
 
             # delete tmp directory
@@ -180,36 +226,39 @@ class Target(Input):
 
         return
 
-    def read_output(self,queries : List) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+    def read_output(self, record_query, output_path : str = None) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
         """
         Read diamond output and return information about regions with signal
         :param file_path: path to diamond output file
-        :param queries: list of SigMaQuery objectss
+        :param record_query: RecordQuery object
+        :return: dictionary with information about regions with signal
         :return: two dictionaries for nucleotide-based signal and proteins with list of similar reference proteins
         """
 
-        nt_signal_arrays = {}
-        aa_signal_arrays = {}
+        nt_signal_array = None
+        aa_signal_array = None
+
+        output_path = output_path if output_path else self.output_paths[-1]
 
         if self.type == 'fasta_nt':
-            for line in open(outfile_path, 'r'):
+            for line in open(output_path, 'r'):
                 if line.startswith('#'):
                     continue
                 else:
                     qaccver, saccver, pident, length, qstart, qend, evalue = line.strip().split('\t')
                     signal = 1 # TODO: add option to use pident or evalue as signal
-                    record_id, qlength = qaccver.split("|")
-                    qlength = int(qlength)
-                    
-                    if record_id not in nt_signal_arrays:
-                        nt_signal_arrays[record_id] = np.zeros(int(qlength))
+
+                    if nt_signal_array is None:
+                        record_id, qlength = qaccver.split("|")
+                        qlength = int(qlength)
+                        nt_signal_array = np.zeros(int(qlength))
 
                     # record nt signal
                     if int(length) >= self.params.nt_length:
-                        nt_signal_arrays[record_id][int(qstart) - 1 : int(qend)] += signal
+                        nt_signal_array[int(qstart) - 1 : int(qend)] += signal
 
         elif self.type == 'fasta_aa':
-            for line in open(outfile_path, 'r'):
+            for line in open(output_path, 'r'):
                 if line.startswith('#'):
                     continue
                 else:
@@ -218,25 +267,18 @@ class Target(Input):
                     record_id, protein_id, protein_coords = qseqid.split('|')
                     start, end, strand = map(int, protein_coords.split('..'))
 
-                    # get q
-                    for q in queries:
-                        if q.has_record(record_id):
-                            break
-                    else:
-                        log_progress(f"Record {record_id} not found in queries", loglevel = "WARNING", msglevel = 1)
-
                     # record nt equivalent aa signal
-                    if record_id not in nt_signal_arrays:
-                        nt_signal_arrays[record_id] = np.zeros(q.get_record_length(record_id))
-                        aa_signal_arrays[record_id] = np.zeros(q.get_cdss_num_per_record(record_id))
+                    if nt_signal_array is None:
+                        nt_signal_array = np.zeros(record_query.len())
+                        aa_signal_array = np.zeros(record_query.get_cdss_num())
 
                     # record nt signal
-                    nt_signal_arrays[record_id][int(start) - 1 : int(end)] += signal
+                    nt_signal_array[int(start) - 1 : int(end)] += signal
                     # record aa signal
-                    aa_signal_arrays[record_id][q.get_cds_order_num(protein_id)] += signal
+                    aa_signal_array[record_query.get_cds_order_num(protein_id)] += signal
 
         elif self.type == 'mmseqs_db':
-            for line in open(outfile_path, 'r'):
+            for line in open(output_path, 'r'):
                 if line.startswith('#'):
                     continue
                 else:
@@ -245,24 +287,17 @@ class Target(Input):
                     record_id, protein_id, protein_coords = sseqid.split('|')
                     start, end, strand = map(int, protein_coords.split('..'))
 
-                    # get q
-                    for q in queries:
-                        if q.has_record(record_id):
-                            break
-                    else:
-                        log_progress(f"Record {record_id} not found in queries", loglevel = "WARNING", msglevel = 1)
-
                     # record nt equivalent aa signal
-                    if record_id not in nt_signal_arrays:
-                        nt_signal_arrays[record_id] = np.zeros(q.get_record_len(record_id))
-                        aa_signal_arrays[record_id] = np.zeros(q.get_record_cds_num(record_id))
+                    if nt_signal_array is None:
+                        nt_signal_array = np.zeros(record_query.len())
+                        aa_signal_array = np.zeros(record_query.get_cdss_num())
 
                     # record nt signal
-                    nt_signal_arrays[record_id][int(start) - 1 : int(end)] += signal
+                    nt_signal_array[int(start) - 1 : int(end)] += signal
                     # record aa signal
-                    aa_signal_arrays[record_id][q.get_record_cds_order_num(protein_id)] += signal
+                    aa_signal_array[record_query.get_cds_order_num(protein_id)] += signal
                 
-        return nt_signal_arrays, aa_signal_arrays
+        return nt_signal_array, aa_signal_array
 
 class Query(Input):
     """
@@ -367,16 +402,18 @@ class Query(Input):
 
         return fastas
     
-
 class Record():
     """
     General record class
     """
 
     def __init__(self, record : SeqRecord):
-        self.record = record
-        self.name = f"{self.record.id}|{self.len()}"
-        self.cdss = self.get_features_of_type('CDS')
+        self.record : SeqRecord = record
+        self.name : str = f"{self.record.id}|{self.len()}"
+        self.cdss : List[SeqFeature] = self.get_features_of_type('CDS')
+        self.cdss_idx : Dict[str : int] = {cds.qualifiers['protein_id'][0] : i for i, cds in enumerate(self.cdss)}
+        self.nt_path: str = ""
+        self.aa_path: str = ""
 
     ### default methods ###
     def __len__(self):
@@ -410,6 +447,22 @@ class Record():
         """
 
         return self.cdss
+
+    def get_cdss_num(self) -> int:
+        """
+        Returns number of CDSs
+        :return: int
+        """
+
+        return len(self.cdss)
+
+    def get_cds_order_num(self, cds_id : str) -> int:
+        """
+        Returns CDS order number in record with record_id.
+        :return: int
+        """
+
+        return self.cdss_idx[cds_id]
 
     def get_features_of_type(self, ftype: str) -> List[SeqFeature]:
         """
@@ -458,6 +511,7 @@ class Record():
         return f">{self.name}\n{format_seq(self.record.seq)}\n"
 
     def get_fasta_aa(self) -> str:
+        
         """
         Return a fasta string of the query CDSs
         :return: fasta string
@@ -468,20 +522,16 @@ class Record():
 
         return fasta
     
-    ### print or write methods ###
-    def print_signal_summary(self) -> None:
+    ### write methods ###
+    def write_fasta(self, output_path : str, fasta : str) -> None:
         """
-        Returns a summary of the signals in the query.
+        Writes a fasta file of the Record
+        :param output_path: path to save fasta file
+        :param fasta: fasta string
         """
-        
-        for signal_group in self.signal.keys():
-            if len(self.signal[signal_group]) == 0: continue
-            log_progress(f"{signal_group} signal group for {self.file_path}:", msglevel = 1)
-            for record_id, refs in self.signal[signal_group].items():
-                log_progress(f"{record_id}:", msglevel = 2)
-                for ref, signal in refs.items():
-                    log_progress(f"{ref}: {sum([1 if x else 0 for x in signal])}/{signal.size} of total {sum(signal)}", msglevel = 3)
 
+        with open(output_path, 'w') as f:
+            f.write(fasta)
 
 class RecordQuery(Record):
     """
@@ -493,6 +543,15 @@ class RecordQuery(Record):
         self.regions = {'nt_based': {}, 'aa_based': {}}
         self.signals = {'nt_based': {}, 'aa_based': {}}
 
+    ### default methods ###
+    def __str__(self):
+        """
+        Returns a string representation of the RecordQuery
+        :return: str
+        """
+
+        return f"RecordQuery({self.name})"
+
     ### get methods ###
     def _get_signal_df(self) -> pd.DataFrame:
         """
@@ -503,13 +562,24 @@ class RecordQuery(Record):
 
         signal_df = pd.DataFrame()
         signal_group = 'nt_based'
-        for ref, signal in self.signal[signal_group].items():
+        for ref, signal in self.signals[signal_group].items():
             colname = f"{signal_group}_{ref}"
             signal_df[colname] = signal
 
         return signal_df
         
     ### custom methods ###
+    def print_signal_summary(self) -> None:
+        """
+        Returns a summary of the signals in the query.
+        """
+        
+        for signal_group, signal_names in self.signals.items():
+            if len(self.signals[signal_group]) == 0: continue
+            log_progress(f"{signal_group} signal group for {self.name}:", msglevel = 1)
+            for signal_name, signal in signal_names.items():
+                log_progress(f"{signal_name}: {sum([1 if x else 0 for x in signal])}/{signal.size} of total {sum(signal)}", msglevel = 3)
+
     def artemis_plot(self, output_dir : str) -> None:
         """
         Writes Artemis plot files of the query regions.
@@ -520,7 +590,7 @@ class RecordQuery(Record):
             output_path = os.path.join(output_dir, f"{record_id}.artemis.plot")
             write_df_to_artemis(self._get_record_signal_df(record_id), output_path)
 
-    def add_signal(self, signal_group : str, signal_name : str, signal_arrays : Dict[str, np.ndarray]) -> None:
+    def add_signal(self, signal_group : str, signal_name : str, signal_array : np.ndarray) -> None:
         """
         Add signal array to the query.
         :param signal_group: signal group
@@ -528,15 +598,7 @@ class RecordQuery(Record):
         :param signal_array: NumPy array with signal values
         """
         
-        for record_id, signal_array in signal_arrays.items():
-            if self.has_record(record_id):
-                try:
-                    self.signal[signal_group][record_id][signal_name] = signal_array
-                except KeyError:
-                    try:
-                        self.signal[signal_group][record_id] = {signal_name: signal_array}
-                    except KeyError:
-                        self.signal[signal_group] = {record_id: {signal_name: signal_array}}
+        self.signals[signal_group][signal_name] = signal_array
 
     def evaluate(self, max_nt_gap : int, min_nt_signals : int, max_aa_gap : int, min_aa_signals : int, min_sig_frac : float) -> None:
         """

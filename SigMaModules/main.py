@@ -123,6 +123,8 @@ def main():
     # add query datasets
     sigma.prepare_queries()
 
+    # search query datasets
+    sigma.search_queries()
     exit()
     for ref_dataset_path, ref_type in zip(args.reference, args.reference_type):
         sigma.add_target(ref_dataset_path, ref_type, ref_dir)
