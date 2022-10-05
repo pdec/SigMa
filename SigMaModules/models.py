@@ -137,7 +137,19 @@ class SigMa():
             for regions in record_query.get_regions().values():
                 self.regions.extend(regions)
 
-        log_progress(f"In total {len(self.regions)} were identified", msglevel = 0, loglevel = "INFO")
+        log_progress(f"In total {len(self.regions)} regions were identified", msglevel = 0, loglevel = "INFO")
+
+    def write_regions(self) -> None:
+        """
+        Write regions to file
+        :return: None
+        """
+        log_progress("Writing regions...", msglevel = 0, loglevel = "INFO")
+        # prepare output file path
+        regions_dir = os.path.join(self.args.outdir, 'regions')
+        if not os.path.exists(regions_dir): os.makedirs(regions_dir)
+        regions_file_path = os.path.join(regions_dir, 'regions.fasta')
+        self.write_fastas([region.to_fasta_nt() for region in self.regions], regions_file_path)
 
 class Input():
     """
@@ -748,7 +760,7 @@ class Region(Record):
         Write a fasta file of the query records
         :return: FASTA string
         """
-        header = f"{self.record.id}|{self.start}..{self.end}|{self.reference}|{self.signal_group}|{self.category}|{self.status}"
+        header = f"{self.record.id}|{self.start}..{self.end}..{self.end - self.start}|{self.signal_source}|{self.signal_group}|{self.category}|{self.status}"
         return f">{header}\n{format_seq(self.record.seq)}"
 
 
