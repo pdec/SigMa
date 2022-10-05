@@ -5,20 +5,9 @@ import argparse
 import numpy as np
 from typing import List
 
-from .query import SigMaQuery
-from .reference import SigMaRefNT, SigMaRefAA, SigMaRefHMM, SigMaRefMMSEQS
-from .models import SigMa, Target, Query, RecordQuery, Region
-from .utils import create_logger, log_progress, list_databases
-from .write import write_fasta
+from .models import SigMa
+from .utils import create_logger, log_progress
 from .version import __version__
-
-def update_queries_signal(queries: List[SigMaQuery], signal_group : str, signal_name : str, signal_arrays : List[np.ndarray]) -> None:
-    """
-    Update the signal of the queries
-    :param queries: list of SigMaQuery objects
-    """
-    for q in queries:
-        q.add_signal(signal_group, signal_name, signal_arrays)
 
 def main():
 
@@ -90,7 +79,7 @@ def main():
 
     ### Validate
     parser_validate.add_argument('--checkv_db_path', help='Path to CheckV database or if no CHECKVDB was set.', metavar = ' ', type = str)
-
+    parser_validate.add_argument('--artemis_plots', help='Generate Artemis plots for query records', action = 'store_true')
     
     args = parser.parse_args()
     if len(sys.argv) < 2:
@@ -131,6 +120,9 @@ def main():
 
     # write regions
     sigma.write_regions()
+
+    # write Artemis plot files
+    if args.artemis_plots: sigma.write_artemis_plots()
 
 def run():
     """Run SigMa analysis."""

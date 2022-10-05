@@ -3,7 +3,6 @@ Module defining SigMa models
 """
 
 from .read import parse_fasta, parse_genbank
-from .features import get_features_of_type, get_feature_coords
 from .utils import log_progress, call_process
 from .write import format_seq, write_df_to_artemis
 
@@ -150,6 +149,19 @@ class SigMa():
         if not os.path.exists(regions_dir): os.makedirs(regions_dir)
         regions_file_path = os.path.join(regions_dir, 'regions.fasta')
         self.write_fastas([region.to_fasta_nt() for region in self.regions], regions_file_path)
+
+    def write_artemis_plots(self) -> None:
+        """
+        Writes Artemis plot files for all query records.
+        :return: None
+        """
+
+        log_progress("Writing Artemis plot files...", msglevel = 0, loglevel = "INFO")
+        # prepare output file path
+        artemis_dir = os.path.join(self.args.outdir, 'artemis_plots')
+        if not os.path.exists(artemis_dir): os.makedirs(artemis_dir)
+        for record_query in self.record_queries:
+            record_query.artemis_plot(artemis_dir)
 
 class Input():
     """
@@ -517,14 +529,6 @@ class Record():
         """
         
         return [f"{cds.qualifiers['record_id'][0]}|{cds.qualifiers['protein_id'][0]}|{int(cds.location.nofuzzy_start)}..{cds.location.nofuzzy_end}..{cds.strand}", cds.qualifiers['translation'][0]]
-
-    def get_feature_coords(feature: SeqFeature) -> List[int]:
-        """
-        Get coordinates of a feature
-        :param feature: a SeqFeature object
-        :return: a list of coordinates
-        """
-        return [feature.location.nofuzzy_start, feature.location.nofuzzy_end]
         
     def get_fasta_nt(self) -> str:
         """
@@ -616,9 +620,8 @@ class RecordQuery(Record):
         :param output_dir: output directory
         """
 
-        for record_id in self.get_records_ids():
-            output_path = os.path.join(output_dir, f"{record_id}.artemis.plot")
-            write_df_to_artemis(self._get_record_signal_df(record_id), output_path)
+        output_path = os.path.join(output_dir, f"{self.record.id}.artemis.plot")
+        write_df_to_artemis(self._get_signal_df(), output_path)
 
     def add_signal(self, signal_group : str, signal_name : str, signal_array : np.ndarray) -> None:
         """
@@ -679,8 +682,8 @@ class RecordQuery(Record):
                                     region_start = i_pos
                                     region_end = i_gap - max_gap_size + 1
                                 elif signal_group == 'aa_based':
-                                    region_start = get_feature_coords(self.cdss[i_pos])[0]
-                                    region_end = get_feature_coords(self.cdss[i_gap - max_gap_size + 1])[1]
+                                    region_start = self.cdss[i_pos].location.nofuzzy_start
+                                    region_end = self.cdss[i_gap - max_gap_size + 1].location.nofuzzy_end
                                 candidate_region = Region(
                                     record = self.get_record()[region_start : region_end],
                                     name = f"{self.record.id}|{target}|{signal_group}|{cand_cnt}|{region_start + 1}..{region_end}",
@@ -710,8 +713,8 @@ class RecordQuery(Record):
                             region_start = i_pos
                             region_end = i_gap - max_gap_size + 1
                         elif signal_group == 'aa_based':
-                            region_start = get_feature_coords(self.cdss[i_pos])[0]
-                            region_end = get_feature_coords(self.cdss[i_gap - max_gap_size + 1])[1]
+                            region_start = self.cdss[i_pos].location.nofuzzy_start
+                            region_end = self.cdss[i_gap - max_gap_size + 1].location.nofuzzy_end
                         candidate_region = Region(
                             record = self.get_record()[region_start : region_end],
                             name = f"{self.record.id}|{target}|{signal_group}|{cand_cnt}|{region_start + 1}..{region_end}",
