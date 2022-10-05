@@ -113,17 +113,15 @@ def main():
     if len(args.reference) != len(args.reference_type) or len(args.query) != len(args.query_type):
         log_progress('Reference and query datasets must be the same length.')
         sys.exit(1)
-
-    # make reference directory
-    ref_dir = os.path.join(args.outdir, 'reference')
-    if not os.path.exists(ref_dir):
-        os.makedirs(ref_dir)
     
     # declare SigMa object
     sigma = SigMa(args)
 
     # add reference datasets
     sigma.prepare_targets()
+
+    # add query datasets
+    sigma.prepare_queries()
 
     exit()
     for ref_dataset_path, ref_type in zip(args.reference, args.reference_type):

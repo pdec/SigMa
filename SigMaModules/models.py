@@ -8,7 +8,8 @@ from .utils import log_progress, call_process
 from .write import format_seq, write_df_to_artemis
 
 from Bio.SeqRecord import SeqRecord
-from typing import List, Dict, Tuple
+from Bio.SeqFeature import SeqFeature
+from typing import List, Dict, Tuple, Union
 import os
 import numpy as np
 import pandas as pd
@@ -29,20 +30,62 @@ class SigMa():
 
     ### custom methods ###
     def prepare_targets(self):
+        log_progress("Preparing references...", msglevel = 0, loglevel = "INFO")
+        # make reference directory
+        ref_dir = os.path.join(self.args.outdir, 'reference')
+        if not os.path.exists(ref_dir):
+            os.makedirs(ref_dir)
+    
         for ref_dataset_path, ref_type in zip(self.args.reference, self.args.reference_type):
             # create target object
             self.targets.append(
                 Target(
                     file_path = ref_dataset_path, 
                     type = ref_type, 
-                    params = self.args)
+                    params = self.args
+                    )
                 )
             # prepare database if needed
             self.targets[-1].prepare(self.args.outdir)
 
+    def prepare_queries(self):
+        log_progress("Preparing queries...", msglevel = 0, loglevel = "INFO")
+        # prepare directory and output files paths
+        query_dir = os.path.join(self.args.outdir, 'query')
+        if not os.path.exists(query_dir): os.makedirs(query_dir)
+        query_nt_path = os.path.join(query_dir, 'query_nt.fasta')
+        query_aa_path = os.path.join(query_dir, 'query_aa.fasta')
 
-    
+        for query_type, query_dataset_path in zip(self.args.query_type, self.args.query):
+            self.queries.append(
+                # create Query object
+                Query(
+                    file_path = query_dataset_path,
+                    type = query_type
+                    )
+                )
+            # link RecordQueries
+            self.record_queries.extend(self.queries[-1].get_record_queries())
 
+        # prepare query files
+        log_progress(f"Writing query FASTA files")
+        self.write_fastas([q.get_fasta_nt() for q in self.record_queries], query_nt_path)
+        self.write_fastas([q.get_fasta_aa() for q in self.record_queries], query_aa_path)
+
+    def write_fastas(self, fastas : List[str], out_path : str) -> None:
+        """
+        Write FASTA sequences to file
+        :param fastas: list of FASTA sequences
+        :param out_path: path to output file
+        :return: None
+        """
+        cnt = 0
+        with open(out_path, 'w') as out:
+            for fasta in fastas:
+                out.write(fasta)
+                cnt += fasta.count('>')
+        
+        log_progress(f"wrote {cnt} sequences to {out_path}", msglevel = 1)
 
 class Input():
     """
@@ -226,22 +269,18 @@ class Query(Input):
     Query data class
     """
 
-    def __init__(self, file_path : str, type : str, name : str):
+    def __init__(self, file_path : str, type : str, name : str = None):
         super().__init__(file_path, type, name)
         self.records = []
         self.cdss = []
 
         if self.type == 'fasta':
-            self.records = parse_fasta(self.file_path)
+            self.records = [RecordQuery(record) for record in parse_fasta(self.file_path)]
         elif self.type == 'genbank':
             for record in parse_genbank(self.file_path):
-                self.records.append(record)
-                rec_cdss = get_features_of_type(record, 'CDS')
-                self.cdss.extend(rec_cdss)
-                if len(rec_cdss) == 0:
-                    log_progress(f"{record.id}: {len(rec_cdss)} CDSs", msglevel = 1, loglevel = "WARNING")
-                else:
-                    log_progress(f"{record.id}: {len(rec_cdss)} CDSs", msglevel = 1)
+                self.records.append(RecordQuery(record))
+                self.cdss.extend(self.records[-1].get_cdss())
+                log_progress(f"{record.id}: {self.records[-1].len()} bps and {len(self.cdss)} CDSs", msglevel = 1, loglevel = "WARNING" if len(self.cdss) == 0 else "INFO")
 
     ### default methods ###
     def __str__(self):
@@ -268,17 +307,13 @@ class Query(Input):
         return record_id in [record.id for record in self.records]
 
     ### get methods ###
-    def get_record(self, record_id : str) -> SeqRecord:
+    def get_record_queries(self) -> List:
         """
-        Returns record with record_id.
-        :return: SeqRecord
+        Returns query records.
+        :return: List(RecordQuery)
         """
 
-        for record in self.records:
-            if record.id == record_id:
-                return record
-        else:
-            raise ValueError(f"Record {record_id} not found in query")
+        return self.records
 
     def get_record_len(self, record_id : str) -> int:
         """
@@ -318,6 +353,20 @@ class Query(Input):
         :return: list of tuples with id and length"""
 
         return [(record.record.id, record.len()) for record in self.records]
+    
+    def get_regions_nt_fasta(self) -> List[str]:
+        """
+        Returns a list of FASTA string of the query regions
+        :return: list of FASTA string
+        """
+
+        fastas = []
+        for signal_group, regions in self.regions.items():
+            for region in regions:
+                fastas.extend(region.record_to_fasta())
+
+        return fastas
+    
 
 class Record():
     """
@@ -327,6 +376,7 @@ class Record():
     def __init__(self, record : SeqRecord):
         self.record = record
         self.name = f"{self.record.id}|{self.len()}"
+        self.cdss = self.get_features_of_type('CDS')
 
     ### default methods ###
     def __len__(self):
@@ -345,7 +395,7 @@ class Record():
         return signal_type in self.signal.keys()
 
     ### get methods ###
-    def get(self) -> SeqRecord:
+    def get_record(self) -> SeqRecord:
         """
         Returns a SeqRecord object
         :return: SeqRecord object
@@ -353,21 +403,53 @@ class Record():
 
         return self.record
     
-    def get_regions_nt_fasta(self) -> List[str]:
+    def get_cdss(self) -> List:
         """
-        Returns a list of FASTA string of the query regions
-        :return: list of FASTA string
+        Returns a list of CDSs
+        :return: List(CDS)
         """
 
-        fastas = []
-        for signal_group, regions in self.regions.items():
-            for region in regions:
-                fastas.extend(region.record_to_fasta())
+        return self.cdss
 
-        return fastas
-    
-    ### custom methods ###
-    def to_fasta_nt(self) -> str:
+    def get_features_of_type(self, ftype: str) -> List[SeqFeature]:
+        """
+        Get features of a given type from SeqRecord
+        :param ftype: type of a feature
+        :return:
+        """
+
+        flist = []
+        for fcnt, feature in enumerate(self.record.features, 1):
+            if feature.type == ftype:
+                if ftype == 'CDS':
+                    if 'translation' not in feature.qualifiers:
+                        feature.qualifiers['translation'] = [feature.extract(self.record.seq).translate(table = 11, to_stop = True)]
+                    if 'protein_id' not in feature.qualifiers:
+                        feature.qualifiers['protein_id'] = [f'{self.record.id}_ft_{fcnt:06d}']
+                    if 'record_id' not in feature.qualifiers:
+                        feature.qualifiers['record_id'] = [self.record.id]
+                flist.append(feature)
+        
+        return sorted(flist, key = lambda x: (x.location.start, x.location.end - x.location.start), reverse = False)
+
+    def get_cds_header_and_aa(cds: SeqFeature) -> List[str]:
+        """
+        Get amino acid sequence of CDS feature
+        :param cds: a SeqFeature object
+        :return: a list of header and amino acid sequence
+        """
+        
+        return [f"{cds.qualifiers['record_id'][0]}|{cds.qualifiers['protein_id'][0]}|{int(cds.location.nofuzzy_start)}..{cds.location.nofuzzy_end}..{cds.strand}", cds.qualifiers['translation'][0]]
+
+    def get_feature_coords(feature: SeqFeature) -> List[int]:
+        """
+        Get coordinates of a feature
+        :param feature: a SeqFeature object
+        :return: a list of coordinates
+        """
+        return [feature.location.nofuzzy_start, feature.location.nofuzzy_end]
+        
+    def get_fasta_nt(self) -> str:
         """
         Returns a fasta string of the Record
         :return: fasta string
@@ -375,7 +457,7 @@ class Record():
 
         return f">{self.name}\n{format_seq(self.record.seq)}\n"
 
-    def cdss_to_fasta(self) -> str:
+    def get_fasta_aa(self) -> str:
         """
         Return a fasta string of the query CDSs
         :return: fasta string
