@@ -48,6 +48,7 @@ def main():
 
     ### Run
     parser.add_argument('-o', '--outdir', help='Output directory', metavar = '<path>', required=True)
+    parser.add_argument('-b', '--batches', help='Number of batches to run on input files [%(default)i]', default = 1, metavar = '<num>', type = int)
     parser.add_argument('-t', '--threads', help='Number of threads to use for data preparation [%(default)i]', default = 4, metavar = '<num>', type = int)
     parser.add_argument('-v', '--version', help='Show program\'s version and exit.', action='version', version='%(prog)s 0.1')
     
@@ -127,11 +128,12 @@ def main():
     sigma.evaluate_signals()
 
     # write regions
-    sigma.write_regions()
+    sigma.write_regions(sigma.filter_regions())
 
     # write Artemis plot files
     if args.artemis_plots: sigma.write_artemis_plots()
 
+    # run CheckV
     sigma.run_checkv()
 
 def run():

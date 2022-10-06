@@ -8,6 +8,7 @@ from .write import format_seq, write_df_to_artemis
 
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqFeature import SeqFeature
+from collections import OrderedDict
 from typing import List, Dict, Tuple, Union
 import os
 import numpy as np
@@ -141,9 +142,10 @@ class SigMa():
 
         log_progress(f"In total {len(self.regions)} regions were identified", msglevel = 0, loglevel = "INFO")
 
-    def write_regions(self) -> None:
+    def write_regions(self, regions : List) -> None:
         """
         Write regions to file
+        :param regions: list of Region objects
         :return: None
         """
         log_progress(f"Writing {self.args.sig_sources} regions ...", msglevel = 0, loglevel = "INFO")
@@ -151,13 +153,7 @@ class SigMa():
         regions_dir = os.path.join(self.args.outdir, 'regions')
         if not os.path.exists(regions_dir): os.makedirs(regions_dir)
         regions_file_path = os.path.join(regions_dir, 'regions.fasta')
-        fastas = []
-        for region in self.regions:
-            if self.args.sig_sources == 'combined' and region.signal_source == 'combined':
-                fastas.append(region.to_fasta_nt())
-            elif self.args.sig_sources == 'all':
-                fastas.append(region.to_fasta_nt())
-        self.write_fastas(fastas, regions_file_path)
+        self.write_fastas([region.to_fasta_nt() for region in regions], regions_file_path)
 
     def write_artemis_plots(self) -> None:
         """
@@ -172,9 +168,50 @@ class SigMa():
         for record_query in self.record_queries:
             record_query.artemis_plot(artemis_dir)
 
+    def filter_regions(self, sig_group : Union[str, List[str]] = None, sig_sources : Union[str, List[str]] = None, status : Union[str, List[str]] = None) -> List:
+        """
+        Filter regions based on provided parameters
+        :param sig_group: signal groups to choose
+        :param sig_sources: signal sources to choose
+        :param status: status to choose
+        :return: list of filtered regions                        
+        """
+
+        if isinstance(sig_group, str):
+            sig_group = [sig_group]
+        if isinstance(sig_sources, str):
+            sig_sources = [sig_sources]
+        if isinstance(status, str):
+            status = [status]
+
+        if not sig_group:
+            sig_group = ['nt_based', 'aa_based']
+
+        if not status:
+            status = ['candidate', 'CheckV']
+
+        if not sig_sources:
+            sig_sources = self.args.sig_sources
+
+        regions = []
+        for region in self.regions:
+            if region.signal_group not in sig_group:
+                continue
+            if region.status not in status:
+                continue
+            if region.signal_source != 'combined' and sig_sources == 'combined':
+                continue
+
+            print(region.signal_group, region.status, region.signal_source)
+
+            regions.append(region)
+
+        return regions
+
     def run_checkv(self) -> None:
         """
-        Runs CheckV to automatically evaluate the completeness and contamination of candidate phage regions
+        Runs CheckV to automatically evaluate the completeness and contamination of candidate phage regions.
+        After that the output file is read non-overlapping high-quality and complete phage regions are picked.
         """
 
         log_progress("Running CheckV...", msglevel = 0, loglevel = "INFO")
@@ -184,7 +221,45 @@ class SigMa():
         checkv_env = '' if not self.args.checkv_env else f"conda run -n {self.args.checkv_env} "
         checkv_db = '' if not self.args.checkv_db else f" -d {self.args.checkv_db} "
         cmd = f"{checkv_env}checkv end_to_end {checkv_db} {self.args.outdir}/regions/regions.fasta {checkv_dir} -t {self.args.threads} --remove_tmp"
-        call_process(cmd, program="checkv")
+        # call_process(cmd, program="checkv")
+
+        log_progress("Processing CheckV output data...", msglevel = 0, loglevel = "INFO")
+        qual_sum_path = os.path.join(checkv_dir, 'quality_summary.tsv')
+        cont_path = os.path.join(checkv_dir, 'contamination.tsv')
+        # read quality summary file and filter high-quality and complete records
+        df = pd.read_csv(qual_sum_path, sep = '\t', keep_default_na=False)
+        cdf = pd.read_csv(cont_path, sep = '\t', keep_default_na=False)
+        # tdf = qsdf[qsdf['checkv_quality'].isin(['High-quality', 'Complete'])] 
+        ckeys = list(set(df.columns).intersection(set(cdf.columns)))
+        checkv = df.merge(cdf, on = ckeys, how='left').to_dict('records', into=OrderedDict)
+
+        # update checkv information for each region
+        for vr in checkv:
+            self.get_region(vr['contig_id']).update_checkv(vr)
+
+        # write updated regions to file
+        verified_dir = os.path.join(self.args.outdir, 'checkv_verified')
+        if not os.path.exists(verified_dir): os.makedirs(verified_dir)
+        regions_file_path = os.path.join(verified_dir, 'regions.fasta')
+        self.write_fastas([region.to_fasta_nt() for region in self.filter_regions(status = ['CheckV Complete', 'CheckV High-quality'])], regions_file_path)
+
+    ### get methods ###
+    def get_region(self, header : str):
+        """
+        Returns region based on a unique header sequence.
+        :param header: Region header string
+        :return: Region object
+        """
+
+        for region in self.regions:
+            if region.header == header:
+                return region
+        else:
+            log_progress(f"Missing {header} in regions!", loglevel="ERROR")
+            exit(1)
+
+
+
 
 class Input():
     """
@@ -688,7 +763,6 @@ class RecordQuery(Record):
         
             log_progress(f"{signal_group} evaluation of {self.name}...", msglevel = 1)
             for target, signal_array in self.signals[signal_group].items():
-                cand_cnt = 0
                 log_progress(f"{np.count_nonzero(signal_array)} {'positions' if signal_group == 'nt_based' else 'proteins'} based on {target}", msglevel = 2)
                 i_pos = -1
                 i_gap = -1
@@ -720,17 +794,16 @@ class RecordQuery(Record):
                                     region_end = self.cdss[i_gap - max_gap_size + 1].location.nofuzzy_end
                                 candidate_region = Region(
                                     record = self.get_record()[region_start : region_end],
-                                    name = f"{self.record.id}|{target}|{signal_group}|{cand_cnt}|{region_start + 1}..{region_end}",
                                     start = region_start,
                                     end = region_end,
                                     signal_source = target,
                                     signal = signal_array[i_pos : i_gap - max_gap_size + 1],
-                                    signal_group = signal_group
+                                    signal_group = signal_group,
+                                    rno = len(self.regions[signal_group]) + 1
                                     )
                                 
                                 self.regions[signal_group].append(candidate_region)
-                                cand_cnt += 1
-                                log_progress(f"{cand_cnt}: {candidate_region}", msglevel = 3)
+                                log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 3)
                             else:
                                 # thresholds unmet
                                 pass
@@ -751,17 +824,15 @@ class RecordQuery(Record):
                             region_end = self.cdss[i_gap - max_gap_size + 1].location.nofuzzy_end
                         candidate_region = Region(
                             record = self.get_record()[region_start : region_end],
-                            name = f"{self.record.id}|{target}|{signal_group}|{cand_cnt}|{region_start + 1}..{region_end}",
                             start = region_start,
                             end = region_end,
                             signal_source = target,
                             signal = signal_array[i_pos : i_gap - max_gap_size + 1],
-                            signal_group = signal_group
+                            signal_group = signal_group,
+                            rno = len(self.regions[signal_group]) + 1,
                             )
-                                
                         self.regions[signal_group].append(candidate_region)
-                        cand_cnt += 1
-                        log_progress(f"{cand_cnt}: {candidate_region}", msglevel = 3)
+                        log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 3)
 
 
 class Region(Record):
@@ -769,16 +840,22 @@ class Region(Record):
     Region class
     """
 
-    def __init__(self, record : SeqRecord, name : str, start : int, end : int, signal : np.ndarray, signal_source : str, signal_group : str, category : str = 'prophage', status : str = 'candidate'):
+    def __init__(self, record : SeqRecord, start : int, end : int, signal : np.ndarray, signal_source : str, signal_group : str, rno : int, category : str = 'prophage', status : str = 'candidate'):
         self.record = record
-        self.name = name
         self.start = start
         self.end = end
         self.signal = signal
         self.signal_source = signal_source
         self.signal_group = signal_group
+        self.rno = rno
         self.category = category
         self.status = status
+        self.name = ''
+        self.header = ''
+        self.checkv = {}
+
+        self.update_name()
+        self.update_header()
 
     ### default methods ###
     def __repr__(self):
@@ -791,13 +868,55 @@ class Region(Record):
     def get_sig_frac(self):
         return np.count_nonzero(self.signal) / len(self.signal)
 
-    ### convert methods ###
+    ### custom methods ###
+    def update_name(self):
+        """
+        Updates the region name
+        """
+
+        self.name = f"{self.record.id}|{self.signal_source}|{self.signal_group}|{self.rno}|{self.len()}|{self.start + 1}..{self.end}"
+    
+    def update_header(self):
+        """
+        Updates the header string
+        """
+
+        self.header = f"{self.record.id}|{self.start + 1}..{self.end}..{self.end - self.start}|{self.signal_source}|{self.signal_group}|{self.rno}|{self.category}|{self.status}"
+
+    def update_checkv(self, d : dict):
+        """
+        Updates Region based on CheckV output data.
+        """
+        self.checkv = d
+        # change status
+        self.status = f"CheckV {d['checkv_quality']}"
+        
+        # update record, coords and signal if considered for further use
+        if self.status.startswith('CheckV'):
+            region_types = d['region_types']
+            if 'host' in region_types: # extract viral region
+                region_types = region_types.split(',')
+                region_coords_bp = d['region_coords_bp'].split(',')
+                print(region_types, region_coords_bp)
+                start, end = map(int, region_coords_bp[region_types.index('viral')].split('-'))
+                start -= 1
+                # coords
+                self.start += start
+                self.end -= self.len() - end
+                # record
+                self.record = self.record[start : end]
+                # signal
+                self.signal = self.signal[start : end]
+            # update name and header
+            self.update_name()
+            self.update_header()
+
     def to_fasta_nt(self) -> str:
         """
         Write a fasta file of the query records
         :return: FASTA string
         """
-        header = f"{self.record.id}|{self.start}..{self.end}..{self.end - self.start}|{self.signal_source}|{self.signal_group}|{self.category}|{self.status}"
-        return f">{header}\n{format_seq(self.record.seq)}\n"
+
+        return f">{self.header}\n{format_seq(self.record.seq)}\n"
 
 
