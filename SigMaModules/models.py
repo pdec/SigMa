@@ -175,7 +175,7 @@ class SigMa():
         checkv_env = '' if not self.args.checkv_env else f"conda run -n {self.args.checkv_env} "
         checkv_db = '' if not self.args.checkv_db else f" -d {self.args.checkv_db} "
         cmd = f"{checkv_env}checkv end_to_end {checkv_db} {self.args.outdir}/regions/regions.fasta {checkv_dir} -t {self.args.threads} --remove_tmp"
-        call_process(cmd)
+        call_process(cmd, program="checkv")
 
 class Input():
     """

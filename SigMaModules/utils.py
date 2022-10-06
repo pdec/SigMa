@@ -92,15 +92,20 @@ def colours() -> List[Tuple[str, str]]:
     ]
     return colours
 
-def call_process(cmd):
+def call_process(cmd, program : str = ''):
     """
     Call a subprocess.
     :param cmd: a command string to run
     """
 
     log_progress(f"running: {cmd}", msglevel=1)
+    if not program: program = cmd.split()[0]
     start_time = datetime.datetime.now()
-    subprocess.call(cmd, shell=True, universal_newlines=True, bufsize=1, stdout=subprocess.PIPE)
+    with subprocess.Popen(cmd, shell=True, universal_newlines=True, bufsize=1, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
+        with process.stdout:
+            for line in process.stdout:
+                if not line.strip(): continue
+                log_progress(f"{program}: {line.strip()}", msglevel = 2, loglevel = "INFO")
     end_time = datetime.datetime.now()
     time_taken = end_time - start_time
     log_progress(f"time taken: {time_taken}", msglevel=1)
