@@ -41,6 +41,11 @@ def main():
         'genbank'
     ]
 
+    SIG_SOURCES = [
+        'all',
+        'combined',
+    ]
+
     ### Run
     parser.add_argument('-o', '--outdir', help='Output directory', metavar = '<path>', required=True)
     parser.add_argument('-t', '--threads', help='Number of threads to use for data preparation [%(default)i]', default = 4, metavar = '<num>', type = int)
@@ -71,6 +76,7 @@ def main():
     parser_search.add_argument('--mmseqs_cov', help='MMseqs2 minimum amino acid coverage for clustering [%(default).2f]', default = 0.7, metavar = ' ', type = float)
 
     ### Evaluate
+    parser_evaluate.add_argument('--combine', help='Combine all signals as a separate category', action='store_true')
     parser_evaluate.add_argument('--max_nt_gap', help='Maximum nucleotide distance between signal [%(default)i]', default = 5000, metavar = ' ', type = int)
     parser_evaluate.add_argument('--min_nt_sig', help='Minimum nucleotide signal within region [%(default)i]', default = 5000, metavar = ' ', type = int)
     parser_evaluate.add_argument('--max_aa_gap', help='Maximum distance between proteins with signal [%(default)i]', default = 5, metavar = ' ', type = int)
@@ -81,6 +87,7 @@ def main():
     parser_validate.add_argument('--checkv_env', help='Name of the conda env with CheckV installed if not installed system-wide.', metavar = ' ', type = str)
     parser_validate.add_argument('--checkv_db', help='Path to CheckV database or if no CHECKVDB was set.', metavar = ' ', type = str)
     parser_validate.add_argument('--artemis_plots', help='Generate Artemis plots for query records', action = 'store_true')
+    parser_validate.add_argument('--sig_sources', help='Signal sources to consider for validation. Allowed types: %(choices)s [%(default)s] ', choices = SIG_SOURCES, default = 'all', metavar = ' ', type = str)
     
     args = parser.parse_args()
     if len(sys.argv) < 2:

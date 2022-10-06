@@ -122,6 +122,9 @@ class SigMa():
                         signal_group = 'aa_based'
                         record_query.add_signal(signal_group, target.name, aa_signal_array)
                 
+                # combine signals
+                if self.args.combine: record_query.combine_signals()
+
                 # print signal summary
                 record_query.print_signal_summary()
 
@@ -143,12 +146,18 @@ class SigMa():
         Write regions to file
         :return: None
         """
-        log_progress("Writing regions...", msglevel = 0, loglevel = "INFO")
+        log_progress(f"Writing {self.args.sig_sources} regions ...", msglevel = 0, loglevel = "INFO")
         # prepare output file path
         regions_dir = os.path.join(self.args.outdir, 'regions')
         if not os.path.exists(regions_dir): os.makedirs(regions_dir)
         regions_file_path = os.path.join(regions_dir, 'regions.fasta')
-        self.write_fastas([region.to_fasta_nt() for region in self.regions], regions_file_path)
+        fastas = []
+        for region in self.regions:
+            if self.args.sig_sources == 'combined' and region.signal_source == 'combined':
+                fastas.append(region.to_fasta_nt())
+            elif self.args.sig_sources == 'all':
+                fastas.append(region.to_fasta_nt())
+        self.write_fastas(fastas, regions_file_path)
 
     def write_artemis_plots(self) -> None:
         """
@@ -647,6 +656,17 @@ class RecordQuery(Record):
         
         self.signals[signal_group][signal_name] = signal_array
 
+    def combine_signals(self) -> None:
+        """
+        Combines all signals to consider separately
+        """
+
+        for signal_group in self.signals.keys():
+            combined_array = np.zeros(self.len() if signal_group == 'nt_based' else self.get_cdss_num())
+            for signal_array in self.signals[signal_group].values():
+                combined_array += signal_array
+            self.add_signal(signal_group, 'combined', combined_array)
+
     def evaluate(self, max_nt_gap : int, min_nt_signals : int, max_aa_gap : int, min_aa_signals : int, min_sig_frac : float) -> None:
         """
         Evaluate signal for each approach and database #TODO allow for combining signal from different approaches
@@ -778,6 +798,6 @@ class Region(Record):
         :return: FASTA string
         """
         header = f"{self.record.id}|{self.start}..{self.end}..{self.end - self.start}|{self.signal_source}|{self.signal_group}|{self.category}|{self.status}"
-        return f">{header}\n{format_seq(self.record.seq)}"
+        return f">{header}\n{format_seq(self.record.seq)}\n"
 
 
