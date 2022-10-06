@@ -163,6 +163,20 @@ class SigMa():
         for record_query in self.record_queries:
             record_query.artemis_plot(artemis_dir)
 
+    def run_checkv(self) -> None:
+        """
+        Runs CheckV to automatically evaluate the completeness and contamination of candidate phage regions
+        """
+
+        log_progress("Running CheckV...", msglevel = 0, loglevel = "INFO")
+        # prepare output file path
+        checkv_dir = os.path.join(self.args.outdir, 'checkv')
+        if not os.path.exists(checkv_dir): os.makedirs(checkv_dir)
+        checkv_env = '' if not self.args.checkv_env else f"conda run -n {self.args.checkv_env} "
+        checkv_db = '' if not self.args.checkv_db else f" -d {self.args.checkv_db} "
+        cmd = f"{checkv_env}checkv end_to_end {checkv_db} {self.args.outdir}/regions/regions.fasta {checkv_dir} -t {self.args.threads} --remove_tmp"
+        call_process(cmd)
+
 class Input():
     """
     General input data class

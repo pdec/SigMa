@@ -78,7 +78,8 @@ def main():
     parser_evaluate.add_argument('--min_sig_frac', help='Minimum fraction of signal within region [%(default).2f]', default = 0.5, metavar = ' ', type = float)
 
     ### Validate
-    parser_validate.add_argument('--checkv_db_path', help='Path to CheckV database or if no CHECKVDB was set.', metavar = ' ', type = str)
+    parser_validate.add_argument('--checkv_env', help='Name of the conda env with CheckV installed if not installed system-wide.', metavar = ' ', type = str)
+    parser_validate.add_argument('--checkv_db', help='Path to CheckV database or if no CHECKVDB was set.', metavar = ' ', type = str)
     parser_validate.add_argument('--artemis_plots', help='Generate Artemis plots for query records', action = 'store_true')
     
     args = parser.parse_args()
@@ -123,6 +124,8 @@ def main():
 
     # write Artemis plot files
     if args.artemis_plots: sigma.write_artemis_plots()
+
+    sigma.run_checkv()
 
 def run():
     """Run SigMa analysis."""
