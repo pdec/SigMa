@@ -142,15 +142,16 @@ class SigMa():
 
         log_progress(f"In total {len(self.regions)} regions were identified", msglevel = 0, loglevel = "INFO")
 
-    def write_regions(self, regions : List) -> None:
+    def write_regions(self, regions : List, group : str) -> None:
         """
         Write regions to file
         :param regions: list of Region objects
+        :param group: group name, either 'candidate' or 'verified'
         :return: None
         """
         log_progress(f"Writing {self.args.sig_sources} regions ...", msglevel = 0, loglevel = "INFO")
         # prepare output file path
-        regions_dir = os.path.join(self.args.outdir, 'regions')
+        regions_dir = os.path.join(self.args.outdir, f"regions.{group}")
         if not os.path.exists(regions_dir): os.makedirs(regions_dir)
         regions_file_path = os.path.join(regions_dir, 'regions.fasta')
         self.write_fastas([region.to_fasta_nt() for region in regions], regions_file_path)
@@ -202,8 +203,6 @@ class SigMa():
             if region.signal_source != 'combined' and sig_sources == 'combined':
                 continue
 
-            print(region.signal_group, region.status, region.signal_source)
-
             regions.append(region)
 
         return regions
@@ -221,7 +220,7 @@ class SigMa():
         checkv_env = '' if not self.args.checkv_env else f"conda run -n {self.args.checkv_env} "
         checkv_db = '' if not self.args.checkv_db else f" -d {self.args.checkv_db} "
         cmd = f"{checkv_env}checkv end_to_end {checkv_db} {self.args.outdir}/regions/regions.fasta {checkv_dir} -t {self.args.threads} --remove_tmp"
-        # call_process(cmd, program="checkv")
+        call_process(cmd, program="checkv")
 
         log_progress("Processing CheckV output data...", msglevel = 0, loglevel = "INFO")
         qual_sum_path = os.path.join(checkv_dir, 'quality_summary.tsv')
@@ -240,8 +239,7 @@ class SigMa():
         # write updated regions to file
         verified_dir = os.path.join(self.args.outdir, 'checkv_verified')
         if not os.path.exists(verified_dir): os.makedirs(verified_dir)
-        regions_file_path = os.path.join(verified_dir, 'regions.fasta')
-        self.write_fastas([region.to_fasta_nt() for region in self.filter_regions(status = ['CheckV Complete', 'CheckV High-quality'])], regions_file_path)
+        self.write_regions(self.filter_regions(status = ['CheckV Complete', 'CheckV High-quality']), 'verified')
 
     ### get methods ###
     def get_region(self, header : str):
@@ -897,7 +895,6 @@ class Region(Record):
             if 'host' in region_types: # extract viral region
                 region_types = region_types.split(',')
                 region_coords_bp = d['region_coords_bp'].split(',')
-                print(region_types, region_coords_bp)
                 start, end = map(int, region_coords_bp[region_types.index('viral')].split('-'))
                 start -= 1
                 # coords

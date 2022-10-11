@@ -128,7 +128,7 @@ def main():
     sigma.evaluate_signals()
 
     # write regions
-    sigma.write_regions(sigma.filter_regions())
+    sigma.write_regions(sigma.filter_regions(), 'candidate')
 
     # write Artemis plot files
     if args.artemis_plots: sigma.write_artemis_plots()
