@@ -228,7 +228,6 @@ class SigMa():
         # read quality summary file and filter high-quality and complete records
         df = pd.read_csv(qual_sum_path, sep = '\t', keep_default_na=False)
         cdf = pd.read_csv(cont_path, sep = '\t', keep_default_na=False)
-        # tdf = qsdf[qsdf['checkv_quality'].isin(['High-quality', 'Complete'])] 
         ckeys = list(set(df.columns).intersection(set(cdf.columns)))
         checkv = df.merge(cdf, on = ckeys, how='left').to_dict('records', into=OrderedDict)
 
@@ -236,9 +235,7 @@ class SigMa():
         for vr in checkv:
             self.get_region(vr['contig_id']).update_checkv(vr)
 
-        # write updated regions to file
-        verified_dir = os.path.join(self.args.outdir, 'checkv_verified')
-        if not os.path.exists(verified_dir): os.makedirs(verified_dir)
+        # write verified regions to file
         self.write_regions(self.filter_regions(status = ['CheckV Complete', 'CheckV High-quality']), 'verified')
 
     ### get methods ###
