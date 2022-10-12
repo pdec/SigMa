@@ -127,14 +127,22 @@ def main():
     # evaluate query datasets
     sigma.evaluate_signals()
 
-    # write regions
-    sigma.write_regions(sigma.filter_regions(), 'candidate')
+    # filter merged regions
+    candidate_regions = sigma.filter_regions(sig_group = 'merged')
+    if len(candidate_regions) > 0:
+        # write cadidate regions
+        sigma.write_regions(candidate_regions, 'candidate')
 
-    # write Artemis plot files
-    if args.artemis_plots: sigma.write_artemis_plots()
+        # write Artemis plot files
+        if args.artemis_plots: sigma.write_artemis_plots()
 
-    # run CheckV
-    sigma.run_checkv()
+        # run CheckV
+        sigma.run_checkv()
+
+        # write verified regions
+        sigma.write_regions(sigma.filter_regions(status = ['CheckV Complete', 'CheckV High-quality']), 'verified')
+    else:
+        log_progress('No candidate regions found.')
 
 def run():
     """Run SigMa analysis."""

@@ -187,7 +187,7 @@ class SigMa():
             status = [status]
 
         if not sig_group:
-            sig_group = ['nt_based', 'aa_based']
+            sig_group = ['nt_based', 'aa_based', 'merged']
 
         if not status:
             status = ['candidate', 'CheckV']
@@ -200,8 +200,6 @@ class SigMa():
             if region.signal_group not in sig_group:
                 continue
             if region.status not in status:
-                continue
-            if region.signal_source != 'combined' and sig_sources == 'combined':
                 continue
 
             regions.append(region)
@@ -220,7 +218,7 @@ class SigMa():
         if not os.path.exists(checkv_dir): os.makedirs(checkv_dir)
         checkv_env = '' if not self.args.checkv_env else f"conda run -n {self.args.checkv_env} "
         checkv_db = '' if not self.args.checkv_db else f" -d {self.args.checkv_db} "
-        cmd = f"{checkv_env}checkv end_to_end {checkv_db} {self.args.outdir}/regions/regions.fasta {checkv_dir} -t {self.args.threads} --remove_tmp"
+        cmd = f"{checkv_env}checkv end_to_end {checkv_db} {self.args.outdir}/regions.candidate/regions.fasta {checkv_dir} -t {self.args.threads} --remove_tmp"
         call_process(cmd, program="checkv")
 
         log_progress("Processing CheckV output data...", msglevel = 0, loglevel = "INFO")
@@ -235,9 +233,6 @@ class SigMa():
         # update checkv information for each region
         for vr in checkv:
             self.get_region(vr['contig_id']).update_checkv(vr)
-
-        # write verified regions to file
-        self.write_regions(self.filter_regions(status = ['CheckV Complete', 'CheckV High-quality']), 'verified')
 
     ### get methods ###
     def get_region(self, header : str):
@@ -662,7 +657,7 @@ class RecordQuery(Record):
 
     def __init__(self, record : SeqRecord):
         super().__init__(record)
-        self.regions = {'nt_based': [], 'aa_based': []}
+        self.regions = {'nt_based': [], 'aa_based': [], 'merged': []}
         self.signals = {'nt_based': {}, 'aa_based': {}}
 
     ### default methods ###
