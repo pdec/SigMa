@@ -234,6 +234,15 @@ class SigMa():
         for vr in checkv:
             self.get_region(vr['contig_id']).update_checkv(vr)
 
+    def list_regions(self, regions : List) -> None:
+        """
+        Logs the list of selected regions.
+        :param regions: a list of Region objects
+        """
+
+        for region in regions:
+            log_progress(f"{region} - {region.status}", msglevel=1, loglevel="INFO")
+        
     ### get methods ###
     def get_region(self, header : str):
         """

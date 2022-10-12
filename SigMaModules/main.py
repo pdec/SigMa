@@ -130,6 +130,9 @@ def main():
     # filter merged regions
     candidate_regions = sigma.filter_regions(sig_group = 'merged')
     if len(candidate_regions) > 0:
+        # list candidate regions
+        log_progress("List of candidate regions:", msglevel = 0, loglevel = "INFO")
+
         # write cadidate regions
         sigma.write_regions(candidate_regions, 'candidate')
 
@@ -138,6 +141,14 @@ def main():
 
         # run CheckV
         sigma.run_checkv()
+
+        # list verified regions
+        log_progress("List of high-quality regions:", msglevel = 0, loglevel = "INFO")
+        sigma.list_regions(sigma.filter_regions(status = ['CheckV Complete', 'CheckV High-quality']))
+
+        # list verified regions
+        log_progress("List of other regions:", msglevel = 0, loglevel = "INFO")
+        sigma.list_regions(sigma.filter_regions(status = ['CheckV Medium-quality', 'CheckV Low-quality', 'CheckV Not-determined']))
 
         # write verified regions
         sigma.write_regions(sigma.filter_regions(status = ['CheckV Complete', 'CheckV High-quality']), 'verified')
