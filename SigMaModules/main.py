@@ -6,21 +6,10 @@ import numpy as np
 from typing import List
 
 from .models import SigMa
-from .utils import create_logger, log_progress
+from .utils import create_logger, log_progress, CustomHelpFormatter
 from .version import __version__
 
 def main():
-
-    class CustomHelpFormatter(argparse.HelpFormatter):
-        def __init__(self, prog):
-            super().__init__(prog, max_help_position=60, width=120)
-
-        def _format_action_invocation(self, action):
-            if not action.option_strings or action.nargs == 0:
-                return super()._format_action_invocation(action)
-            default = self._get_default_metavar_for_optional(action)
-            args_string = self._format_args(action, default)
-            return ', '.join(action.option_strings) + ' ' + args_string
 
     parser = argparse.ArgumentParser(description='SigMa - a tool for iterative mapping of phage signatures and prophage recovery.', epilog='Example: SigMa.py run -r reference.fasta -q query.fasta -o output_dir\n', formatter_class=CustomHelpFormatter)
 
