@@ -26,6 +26,7 @@ class SigMa():
         self.queries: List[Query] = []
         self.record_queries: List[RecordQuery] = []
         self.regions: List[Region] = []
+        self.hq_regions: List[Region] = []
         self.args = args
 
     ### custom methods ###
@@ -206,6 +207,20 @@ class SigMa():
 
         return regions
 
+    def filter_hq_regions(self):
+        """
+        Filter high quality regions only
+        :return: list of high quality regions
+        """
+        
+        for region in self.filter_regions(sig_group = 'merged', sig_sources = 'merged', status = ['CheckV Complete', 'CheckV High-quality', 'CheckV Medium-quality']):
+            if region.status in ['CheckV Complete', 'CheckV High-quality']:
+                if region.len() >= self.args.checkv_len and region.get_sig_frac() >= self.args.checkv_sig_frac:
+                    self.hq_regions.append(region)
+            elif region.status in ['CheckV Medium-quality']:
+                if region.len() >= self.args.checkv_mq_len and region.get_sig_frac() >= self.args.checkv_mq_sig_frac:
+                    self.hq_regions.append(region)
+    
     def run_checkv(self) -> None:
         """
         Runs CheckV to automatically evaluate the completeness and contamination of candidate phage regions.

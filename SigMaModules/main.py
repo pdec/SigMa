@@ -87,6 +87,10 @@ def main():
     ### Validate
     parser_validate.add_argument('--checkv_env', help='Name of the conda env with CheckV installed if not installed system-wide.', metavar = ' ', type = str)
     parser_validate.add_argument('--checkv_db', help='Path to CheckV database or if no CHECKVDB was set.', metavar = ' ', type = str)
+    parser_validate.add_argument('--checkv_len', help='Minimum length of all CheckV candidates to consider [%(default)i]', default = 5000, metavar = ' ', type = int)
+    parser_validate.add_argument('--checkv_sig_frac', help='Minimum fraction of signal of all CheckV candidates to consider [%(default).2f]', default = 0.5, metavar = ' ', type = float)
+    parser_validate.add_argument('--checkv_mq_len', help='Minimum length of CheckV *Medium-quality* candidates [%(default)i]', default = 20000, metavar = ' ', type = int)
+    parser_validate.add_argument('--checkv_mq_sig_frac', help='Minimum fraction of signal of CheckV *Medium-quality* candidates [%(default).2f]', default = 0.85, metavar = ' ', type = float)
     parser_validate.add_argument('--artemis_plots', help='Generate Artemis plots for query records', action = 'store_true')
     parser_validate.add_argument('--sig_sources', help='Signal sources to consider for validation. Allowed types: %(choices)s [%(default)s] ', choices = SIG_SOURCES, default = 'all', metavar = ' ', type = str)
     
@@ -142,16 +146,19 @@ def main():
         # run CheckV
         sigma.run_checkv()
 
-        # list verified regions
-        log_progress("List of high-quality regions:", msglevel = 0, loglevel = "INFO")
-        sigma.list_regions(sigma.filter_regions(status = ['CheckV Complete', 'CheckV High-quality']))
+        # list all verified regions
+        log_progress("List of all regions:", msglevel = 0, loglevel = "INFO")
+        sigma.list_regions(candidate_regions)
 
-        # list verified regions
-        log_progress("List of other regions:", msglevel = 0, loglevel = "INFO")
-        sigma.list_regions(sigma.filter_regions(status = ['CheckV Medium-quality', 'CheckV Low-quality', 'CheckV Not-determined']))
+        # filter only high-quality regions
+        sigma.filter_hq_regions()
+
+        # list high-quality regions
+        log_progress("List of high-quality regions:", msglevel = 0, loglevel = "INFO")
+        sigma.list_regions(sigma.hq_regions)
 
         # write verified regions
-        sigma.write_regions(sigma.filter_regions(status = ['CheckV Complete', 'CheckV High-quality']), 'verified')
+        sigma.write_regions(sigma.hq_regions, 'verified')
     else:
         log_progress('No candidate regions found.')
 

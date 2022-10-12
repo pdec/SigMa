@@ -52,5 +52,8 @@ Each iteration consists of the following steps:
     - [x] write Artemis plot files --> `artemis_plots/`
 5. Validate predictions --> `regions.verified`
     - [ ] manually - go throught predictions and select phage and non-phage regions
-    - [x] automatically - run CheckV on picked regions and select Complete or High-quality ones only
+    - [x] automatically - run CheckV on picked regions and select 
+      - [x] Complete
+      - [x] High-quality
+      - [x] Medium-quality but of length >= 20kb and fraction >= 0.9
 
