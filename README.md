@@ -55,5 +55,5 @@ Each iteration consists of the following steps:
     - [x] automatically - run CheckV on picked regions and select 
       - [x] Complete
       - [x] High-quality
-      - [x] Medium-quality but of length >= 20kb and fraction >= 0.9
+      - [x] Medium-quality but of length >= 20kb and fraction >= 0.85
 
