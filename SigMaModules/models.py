@@ -137,6 +137,7 @@ class SigMa():
         log_progress("Evaluating signals...", msglevel = 0, loglevel = "INFO")
         for record_query in self.record_queries:
             record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
+            record_query.merge_regions()
             for regions in record_query.get_regions().values():
                 self.regions.extend(regions)
 
@@ -754,6 +755,8 @@ class RecordQuery(Record):
             elif signal_group == 'aa_based':
                 max_gap_size = max_aa_gap
                 min_sig_signals = min_aa_signals
+            elif signal_group == 'merged':
+                continue
             min_signal_frac = min_sig_frac
         
             log_progress(f"{signal_group} evaluation of {self.name}...", msglevel = 1)
@@ -829,6 +832,61 @@ class RecordQuery(Record):
                         self.regions[signal_group].append(candidate_region)
                         log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 3)
 
+    def merge_regions(self) -> None:
+        """
+        Merge regions to dereplicate them
+        1. Get all regions
+        2. Sort them by start position
+        3. Check if the next region overlaps with the previous one
+        4. If the next region overlaps completely with the previous one, remove the shorter one - as it is easier to trim rather than expand automatically or manually
+        """
+
+        log_progress(f"merging overlapping regions of {self.name}...", msglevel = 1)
+        
+        # get all regions
+        regions = sorted(self.regions['nt_based'] + self.regions['aa_based'], key = lambda x: [x.start, -x.len()])
+        # get coverage of all regions across sequence
+        regions_cov = np.zeros(self.len())
+        merged_signal = np.zeros(self.len())
+        if 'combined' in self.signals['nt_based'].keys():
+            merged_signal += self.signals['nt_based']['combined']
+        else:
+            for signal_group in self.signals.keys():
+                for signal_array in self.signals[signal_group].values():
+                    merged_signal += signal_array
+
+        # overlay positions of regions
+        for region in regions:
+            regions_cov[region.start : region.end] += 1
+        
+        # find non-overlapping regions
+        # based on this handy reply https://stackoverflow.com/a/27642744
+        edges, = np.nonzero(np.diff((regions_cov==0)*1))
+        edge_vec = [edges + 1]
+        if regions_cov[0] != 0:
+            edge_vec.insert(0, [0])
+        if regions_cov[-1] != 0:
+            edge_vec.append([len(regions_cov)])
+        edges = np.concatenate(edge_vec)
+        ranges = zip(edges[::2], edges[1::2])
+
+        # create merged regions
+        signal_group = 'merged'
+        for region_start, region_end in ranges:
+            candidate_region = Region(
+                record = self.get_record()[region_start : region_end],
+                start = region_start,
+                end = region_end,
+                signal_source = signal_group,
+                signal = merged_signal[region_start : region_end],
+                signal_group = signal_group,
+                rno = len(self.regions[signal_group]) + 1
+                )
+            self.regions[signal_group].append(candidate_region)
+            log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 2)
+
+        log_progress(f"merging overlapping regions of {self.name}...", msglevel = 1)
+        log_progress(f"found {len(self.regions['merged'])} non-overlapping regions based on {len(self.regions['nt_based'])} and {len(self.regions['aa_based'])} regions in nt and aa space", msglevel = 2)
 
 class Region(Record):
     """
