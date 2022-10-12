@@ -5,7 +5,7 @@ It is meant to allow incorporation of validated (manually or autoamtically) prop
 
 ## TODO
 ### Major things to do
-- [ ] - dereplication of candidate regions in automatic run mode
+- [x] - dereplication of candidate regions in automatic run mode
 - [ ] - managing config files or input mapping files
 - [ ] - default reference datasets configuration
 - [ ] - managing iterations
@@ -47,9 +47,9 @@ Each iteration consists of the following steps:
     - [x] map results/signal presence on sequences
     - [x] merge adjacent/overlapping signals 
     - [x] determine candidate regions
-    - [ ] dereplicate regions
-    - [ ] write candidate regions --> `regions.candidates/`
-    - [ ] write Artemis plot files --> `artemis/`
+    - [x] merge overlapping regions and consider as candidates
+    - [x] write candidate regions --> `regions.candidate/`
+    - [x] write Artemis plot files --> `artemis_plots/`
 5. Validate predictions --> `regions.verified`
     - [ ] manually - go throught predictions and select phage and non-phage regions
     - [x] automatically - run CheckV on picked regions and select Complete or High-quality ones only
