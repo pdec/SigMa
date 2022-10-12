@@ -67,41 +67,6 @@ class SigMa():
             # link RecordQueries
             self.record_queries.extend(self.queries[-1].get_record_queries())
 
-    def write_fastas(self, fastas : Union[str, List[str]], out_path : str) -> None:
-        """
-        Write FASTA sequences to file
-        :param fastas: list of FASTA sequences
-        :param out_path: path to output file
-        :return: None
-        """
-
-        if isinstance(fastas, str):
-            fastas = [fastas]
-
-        cnt = 0
-        with open(out_path, 'w') as out:
-            for fasta in fastas:
-                out.write(fasta)
-                cnt += fasta.count('>')
-        
-        log_progress(f"wrote {cnt} sequences to {out_path}", msglevel = 1)
-
-    def write_genbanks(self, seqrecs : Union[SeqRecord, List[SeqRecord]], out_path : str) -> None:
-        """
-        Write SeqRecords of regions to GenBank file
-        :param seqrecs: list of SeqRecord objects
-        :param out_path: path to output file
-        :return: None
-        """
-
-        if isinstance(seqrecs, str):
-            seqrecs = [seqrecs]
-
-        with open(out_path, 'w') as out:
-            SeqIO.write(seqrecs, out, 'genbank')
-        
-        log_progress(f"wrote {len(seqrecs)} sequences to {out_path}", msglevel = 1)
-
     def search_queries(self) -> None:
         """
         Search queries against references
@@ -161,42 +126,6 @@ class SigMa():
 
         log_progress(f"In total {len(self.regions)} regions were identified", msglevel = 0, loglevel = "INFO")
 
-    def write_regions(self, regions : List, group : str, format : Union[str, List[str]] = 'fasta') -> None:
-        """
-        Write regions to file
-        :param regions: list of Region objects
-        :param group: group name, either 'candidate' or 'verified'
-        :param format: format of the sequence to write: fasta or genbank
-        :return: None
-        """
-        log_progress(f"Writing regions ...", msglevel = 0, loglevel = "INFO")
-        # prepare output file paths
-        regions_dir = os.path.join(self.args.outdir, f"regions")
-        if not os.path.exists(regions_dir): os.makedirs(regions_dir)
-        if isinstance(format, str):
-            format = [format]
-        
-        for f in format:
-            if f == 'fasta':
-                regions_file_path = os.path.join(regions_dir, f"{group}.fasta")
-                self.write_fastas([region.to_fasta_nt() for region in regions], regions_file_path)
-            elif f == 'genbank':
-                regions_file_path = os.path.join(regions_dir, f"{group}.gb")
-                self.write_genbanks([region.to_genbank() for region in regions], regions_file_path)
-                
-    def write_artemis_plots(self) -> None:
-        """
-        Writes Artemis plot files for all query records.
-        :return: None
-        """
-
-        log_progress("Writing Artemis plot files...", msglevel = 0, loglevel = "INFO")
-        # prepare output file path
-        artemis_dir = os.path.join(self.args.outdir, 'artemis_plots')
-        if not os.path.exists(artemis_dir): os.makedirs(artemis_dir)
-        for record_query in self.record_queries:
-            record_query.artemis_plot(artemis_dir)
-
     def filter_regions(self, sig_group : Union[str, List[str]] = None, sig_sources : Union[str, List[str]] = None, status : Union[str, List[str]] = None) -> List:
         """
         Filter regions based on provided parameters
@@ -216,17 +145,11 @@ class SigMa():
         if not sig_group:
             sig_group = ['nt_based', 'aa_based', 'merged']
 
-        if not status:
-            status = ['candidate', 'CheckV']
-
-        if not sig_sources:
-            sig_sources = self.args.sig_sources
-
         regions = []
         for region in self.regions:
             if region.signal_group not in sig_group:
                 continue
-            if region.status not in status:
+            if status and region.status not in status:
                 continue
 
             regions.append(region)
@@ -299,8 +222,106 @@ class SigMa():
             log_progress(f"Missing {header} in regions!", loglevel="ERROR")
             exit(1)
 
+    ### write methods ###
+    def write_regions(self, regions : List, group : str, format : Union[str, List[str]] = 'fasta') -> None:
+        """
+        Write regions to file
+        :param regions: list of Region objects
+        :param group: group name, either 'candidate' or 'verified'
+        :param format: format of the sequence to write: fasta or genbank
+        :return: None
+        """
+        log_progress(f"Writing regions ...", msglevel = 0, loglevel = "INFO")
+        # prepare output file paths
+        regions_dir = os.path.join(self.args.outdir, f"regions")
+        if not os.path.exists(regions_dir): os.makedirs(regions_dir)
+        if isinstance(format, str):
+            format = [format]
+        
+        for f in format:
+            if f == 'fasta':
+                regions_file_path = os.path.join(regions_dir, f"{group}.fasta")
+                self.write_fastas([region.to_fasta_nt() for region in regions], regions_file_path)
+            elif f == 'genbank':
+                regions_file_path = os.path.join(regions_dir, f"{group}.gb")
+                self.write_genbanks([region.to_genbank() for region in regions], regions_file_path)
 
+    def write_fastas(self, fastas : Union[str, List[str]], out_path : str) -> None:
+        """
+        Write FASTA sequences to file
+        :param fastas: list of FASTA sequences
+        :param out_path: path to output file
+        :return: None
+        """
 
+        if isinstance(fastas, str):
+            fastas = [fastas]
+
+        cnt = 0
+        with open(out_path, 'w') as out:
+            for fasta in fastas:
+                out.write(fasta)
+                cnt += fasta.count('>')
+        
+        log_progress(f"wrote {cnt} sequences to {out_path}", msglevel = 1)
+
+    def write_genbanks(self, seqrecs : Union[SeqRecord, List[SeqRecord]], out_path : str) -> None:
+        """
+        Write SeqRecords of regions to GenBank file
+        :param seqrecs: list of SeqRecord objects
+        :param out_path: path to output file
+        :return: None
+        """
+
+        if isinstance(seqrecs, str):
+            seqrecs = [seqrecs]
+
+        with open(out_path, 'w') as out:
+            SeqIO.write(seqrecs, out, 'genbank')
+        
+        log_progress(f"wrote {len(seqrecs)} sequences to {out_path}", msglevel = 1)
+
+    def write_summary(self, sep : str = '\t') -> None:
+        """
+        Write summary of the results
+        :param sep: table separator
+        :return: None
+        """
+
+        log_progress("Writing summary...", msglevel = 0, loglevel = "INFO")
+        # prepare output file paths
+        gen_sum_path = os.path.join(self.args.outdir, 'summary.all_regions.tsv')
+        cand_sum_path = os.path.join(self.args.outdir, 'summary.candidates.tsv')
+        ver_sum_path = os.path.join(self.args.outdir, 'summary.verified.tsv')
+
+        # write general summary
+        with open(gen_sum_path, 'w') as out:
+            for region in self.filter_regions(sig_group=['nt_based', 'aa_based']):
+                out.write(sep.join(map(str, region.to_list())) + "\n")
+        log_progress(f"wrote summary to {gen_sum_path}", msglevel = 1)    
+        
+        with open(cand_sum_path, 'w') as out:
+            for region in self.filter_regions(sig_group=['merged']):
+                out.write(sep.join(map(str, region.to_list())) + "\n")
+        log_progress(f"wrote summary to {cand_sum_path}", msglevel = 1)
+        
+        with open(ver_sum_path, 'w') as out:
+            for region in self.hq_regions:
+                out.write(sep.join(map(str, region.to_list())) + "\n")
+        log_progress(f"wrote summary to {ver_sum_path}", msglevel = 1) 
+            
+    def write_artemis_plots(self) -> None:
+        """
+        Writes Artemis plot files for all query records.
+        :return: None
+        """
+
+        log_progress("Writing Artemis plot files...", msglevel = 0, loglevel = "INFO")
+        # prepare output file path
+        artemis_dir = os.path.join(self.args.outdir, 'artemis_plots')
+        if not os.path.exists(artemis_dir): os.makedirs(artemis_dir)
+        for record_query in self.record_queries:
+            record_query.artemis_plot(artemis_dir)
 
 class Input():
     """
@@ -948,6 +969,8 @@ class Region(Record):
         self.rno = rno
         self.category = category
         self.status = status
+        self.id = f"{self.record.id}_{self.category}{self.rno}"
+        self.desc = f"{self.category}{self.rno} of {self.record.description}"
         self.name = ''
         self.header = ''
         self.checkv = {}
@@ -1022,9 +1045,29 @@ class Region(Record):
         """
         
         rec = self.get_record()
-        rec.id = f"{self.record.id}_{self.category}{self.rno}"
-        rec.description = f"{self.category}{self.rno} of {self.record.description}"
+        rec.id = self.id
+        rec.description = self.desc
         rec.annotations['molecule_type'] = 'DNA'
 
         return rec
 
+    def to_list(self) -> str:
+        """
+        Returns a list of the region data
+        :retrun: separator-separated string
+        """
+
+        return [
+            self.id,
+            self.desc,
+            self.record.id,
+            self.start + 1,
+            self.end,
+            self.len(),
+            self.signal_source,
+            self.signal_group,
+            self.rno,
+            self.category,
+            self.status,
+            self.name,
+            self.header] + list(self.checkv.values())

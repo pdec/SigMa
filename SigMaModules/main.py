@@ -157,6 +157,9 @@ def main():
         log_progress("List of high-quality regions:", msglevel = 0, loglevel = "INFO")
         sigma.list_regions(sigma.hq_regions)
 
+        # write summary
+        sigma.write_summary()
+
         # write verified regions
         sigma.write_regions(sigma.hq_regions, 'verified', format = ['fasta', 'genbank'])
     else:
