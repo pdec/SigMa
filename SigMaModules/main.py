@@ -158,7 +158,7 @@ def main():
         sigma.list_regions(sigma.hq_regions)
 
         # write verified regions
-        sigma.write_regions(sigma.hq_regions, 'verified')
+        sigma.write_regions(sigma.hq_regions, 'verified', format = ['fasta', 'genbank'])
     else:
         log_progress('No candidate regions found.')
 

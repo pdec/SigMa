@@ -6,6 +6,8 @@ It is meant to allow incorporation of validated (manually or autoamtically) prop
 ## TODO
 ### Major things to do
 - [x] - dereplication of candidate regions in automatic run mode
+- [x] - write GenBank files
+- [ ] - write summary TSV
 - [ ] - managing config files or input mapping files
 - [ ] - default reference datasets configuration
 - [ ] - managing iterations
@@ -48,9 +50,9 @@ Each iteration consists of the following steps:
     - [x] merge adjacent/overlapping signals 
     - [x] determine candidate regions
     - [x] merge overlapping regions and consider as candidates
-    - [x] write candidate regions --> `regions.candidate/`
+    - [x] write candidate regions --> `regions/candidate.fasta`
     - [x] write Artemis plot files --> `artemis_plots/`
-5. Validate predictions --> `regions.verified`
+5. Validate predictions --> `regions/verified.fasta` and `regions/verified.gb`
     - [ ] manually - go throught predictions and select phage and non-phage regions
     - [x] automatically - run CheckV on picked regions and select 
       - [x] Complete

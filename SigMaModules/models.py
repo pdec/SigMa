@@ -6,6 +6,7 @@ from .read import parse_fasta, parse_genbank
 from .utils import log_progress, call_process
 from .write import format_seq, write_df_to_artemis
 
+from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqFeature import SeqFeature
 from collections import OrderedDict
@@ -85,6 +86,22 @@ class SigMa():
         
         log_progress(f"wrote {cnt} sequences to {out_path}", msglevel = 1)
 
+    def write_genbanks(self, seqrecs : Union[SeqRecord, List[SeqRecord]], out_path : str) -> None:
+        """
+        Write SeqRecords of regions to GenBank file
+        :param seqrecs: list of SeqRecord objects
+        :param out_path: path to output file
+        :return: None
+        """
+
+        if isinstance(seqrecs, str):
+            seqrecs = [seqrecs]
+
+        with open(out_path, 'w') as out:
+            SeqIO.write(seqrecs, out, 'genbank')
+        
+        log_progress(f"wrote {len(seqrecs)} sequences to {out_path}", msglevel = 1)
+
     def search_queries(self) -> None:
         """
         Search queries against references
@@ -144,20 +161,29 @@ class SigMa():
 
         log_progress(f"In total {len(self.regions)} regions were identified", msglevel = 0, loglevel = "INFO")
 
-    def write_regions(self, regions : List, group : str) -> None:
+    def write_regions(self, regions : List, group : str, format : Union[str, List[str]] = 'fasta') -> None:
         """
         Write regions to file
         :param regions: list of Region objects
         :param group: group name, either 'candidate' or 'verified'
+        :param format: format of the sequence to write: fasta or genbank
         :return: None
         """
-        log_progress(f"Writing {self.args.sig_sources} regions ...", msglevel = 0, loglevel = "INFO")
-        # prepare output file path
-        regions_dir = os.path.join(self.args.outdir, f"regions.{group}")
+        log_progress(f"Writing regions ...", msglevel = 0, loglevel = "INFO")
+        # prepare output file paths
+        regions_dir = os.path.join(self.args.outdir, f"regions")
         if not os.path.exists(regions_dir): os.makedirs(regions_dir)
-        regions_file_path = os.path.join(regions_dir, 'regions.fasta')
-        self.write_fastas([region.to_fasta_nt() for region in regions], regions_file_path)
-
+        if isinstance(format, str):
+            format = [format]
+        
+        for f in format:
+            if f == 'fasta':
+                regions_file_path = os.path.join(regions_dir, f"{group}.fasta")
+                self.write_fastas([region.to_fasta_nt() for region in regions], regions_file_path)
+            elif f == 'genbank':
+                regions_file_path = os.path.join(regions_dir, f"{group}.gb")
+                self.write_genbanks([region.to_genbank() for region in regions], regions_file_path)
+                
     def write_artemis_plots(self) -> None:
         """
         Writes Artemis plot files for all query records.
@@ -233,7 +259,7 @@ class SigMa():
         if not os.path.exists(checkv_dir): os.makedirs(checkv_dir)
         checkv_env = '' if not self.args.checkv_env else f"conda run -n {self.args.checkv_env} "
         checkv_db = '' if not self.args.checkv_db else f" -d {self.args.checkv_db} "
-        cmd = f"{checkv_env}checkv end_to_end {checkv_db} {self.args.outdir}/regions.candidate/regions.fasta {checkv_dir} -t {self.args.threads} --remove_tmp"
+        cmd = f"{checkv_env}checkv end_to_end {checkv_db} {self.args.outdir}/regions/candidate.fasta {checkv_dir} -t {self.args.threads} --remove_tmp"
         call_process(cmd, program="checkv")
 
         log_progress("Processing CheckV output data...", msglevel = 0, loglevel = "INFO")
@@ -912,7 +938,7 @@ class Region(Record):
     Region class
     """
 
-    def __init__(self, record : SeqRecord, start : int, end : int, signal : np.ndarray, signal_source : str, signal_group : str, rno : int, category : str = 'prophage', status : str = 'candidate'):
+    def __init__(self, record : SeqRecord, start : int, end : int, signal : np.ndarray, signal_source : str, signal_group : str, rno : int, category : str = 'pp', status : str = 'candidate'):
         self.record = record
         self.start = start
         self.end = end
@@ -990,4 +1016,15 @@ class Region(Record):
 
         return f">{self.header}\n{format_seq(self.record.seq)}\n"
 
+    def to_genbank(self) -> SeqRecord:
+        """
+        Returns updated SeqRecord object
+        """
+        
+        rec = self.get_record()
+        rec.id = f"{self.record.id}_{self.category}{self.rno}"
+        rec.description = f"{self.category}{self.rno} of {self.record.description}"
+        rec.annotations['molecule_type'] = 'DNA'
+
+        return rec
 
