@@ -9,7 +9,7 @@ It is meant to allow incorporation of validated (manually or autoamtically) prop
 - [x] - write GenBank files
 - [x] - write summary TSV
 - [ ] - managing config files or input mapping files
-- [ ] - default reference datasets configuration
+- [x] - default reference datasets configuration
 - [ ] - managing iterations
 - [ ] - determine SigMa requirements and prepare envs
 
@@ -69,7 +69,7 @@ python3 scripts/prepdb.py --gb inphared.gb --dbdir ./dbs --threads 4 --tmp ./tmp
 rm inphared.gb
 ```
 
-You can do that with your own files as well. Input file name without extention will be further used as reference dataset name, therefore avoid using whitespace characters.
+You can do that with your own GenBank or FASTA files as well. Input file name without extention will be further used as reference dataset name, therefore avoid using whitespace characters.
 
 # Workflow
 SigMa is supposed to run in a single on multiple iterations mode with and without breaks for manual validation of predictions from certain iterations.
