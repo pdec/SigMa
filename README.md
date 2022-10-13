@@ -7,7 +7,7 @@ It is meant to allow incorporation of validated (manually or autoamtically) prop
 ### Major things to do
 - [x] - dereplication of candidate regions in automatic run mode
 - [x] - write GenBank files
-- [ ] - write summary TSV
+- [x] - write summary TSV
 - [ ] - managing config files or input mapping files
 - [ ] - default reference datasets configuration
 - [ ] - managing iterations
@@ -17,6 +17,60 @@ It is meant to allow incorporation of validated (manually or autoamtically) prop
 - [ ] - implement PhiSpy
 - [ ] - rewrite diamond to MMSEQs for protein searches
 - [ ] - implement HMMER (pVOGs, VOGDB)
+## Installation
+### Requirements
+- python3
+- ncbi-blast
+- mmseqs2
+- diamond
+- MeShClust
+- CheckV
+
+## Reference datasets
+By default SigMa relies on the following datasets:
+- [PHROGs](https://phrogs.lmge.uca.fr/) MMSEQs HMM profile database
+- prophages we have manually identified
+- [INPHARED](https://github.com/RyanCook94/inphared) database
+
+We cluster prophages and INPHARED database separatey to track the advantage of prophage discovery and reuse.
+
+During the run, SigMa considers all reference datasets separately but can combine that if `--combine` or `--combine --sig_sources combined` is used.
+After candidate regions are picked from each signal groups (all reference datasets and potentially 'combined' group) they are all overlayed and merged to pick unique ranges within each sequence to verify further with CheckV and/or manually. Coordinates of all candidates are still written to summary files.
+
+### Set up reference databases
+The repo comes with a set of prophages we have manually identified - `./data/pps.gb.gz`.
+We'll put all reference databases to `./dbs/` directory within the repo.
+
+Let's create the db directory.
+
+`if [ ! -z ./dbs ]; then mkdir ./dbs; fi`
+
+Now let's prepare pps database running provided script. It takes GenBank and FASTA files as input and generates protein and nucleotide clustered files produced with MMSeqs and [MeShClust](https://github.com/BioinformaticsToolsmith/Identity).
+
+`python3 scripts/prepdb.py --gb ./data/pps.gb.gz --dbdir ./dbs --threads 4 --tmp ./tmp`
+
+To download PHROGS MMSeqs HMM profiles you can use these commands:
+
+```bash
+curl https://phrogs.lmge.uca.fr/downloads_from_website/phrogs_mmseqs_db.tar.gz
+tar zxvf phrogs_mmseqs_db.tar.gz
+mv phrogs_mmseqs_db/phrogs_profile_db* ./dbs/
+rm -r phrogs_mmseqs_db*
+```
+
+To download INPHARED latest database you cas use these commands but remember to modify the date.
+We'll download all phage genbanks as we'll cluster them anyway and it's easier to download the whole file but you may just download all genbanks based on <date>_data_excluding_refseq.tsv file.
+
+
+```bash
+curl http://inphared.s3.climb.ac.uk/1Oct2022_phages_downloaded_from_genbank.gb -o inphared.gb
+# consider more threads as this one might take a while
+python3 scripts/prepdb.py --gb inphared.gb --dbdir ./dbs --threads 4 --tmp ./tmp
+rm inphared.gb
+```
+
+You can do that with your own files as well. Input file name without extention will be further used as reference dataset name, therefore avoid using whitespace characters.
+
 # Workflow
 SigMa is supposed to run in a single on multiple iterations mode with and without breaks for manual validation of predictions from certain iterations.
 
