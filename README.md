@@ -11,20 +11,46 @@ It is meant to allow incorporation of validated (manually or autoamtically) prop
 - [ ] - managing config files or input mapping files
 - [x] - default reference datasets configuration
 - [ ] - managing iterations
-- [ ] - determine SigMa requirements and prepare envs
+- [x] - determine SigMa requirements and prepare envs
 
 ### Optional
 - [ ] - implement PhiSpy
 - [ ] - rewrite diamond to MMSEQs for protein searches
 - [ ] - implement HMMER (pVOGs, VOGDB)
 ## Installation
+Before you start using SigMa, you should have programs and packages installed on your system or conda env. 
+We provide a conda configuration file `sigma_env.yml` to make the process easier, yet you will still need to install MeShClust yourself as well as configure CheckV database.
+
+```bash
+git clone git@github.com:pdec/SigMa.git
+cd SigMa
+# use conda or mamba to create env
+conda env create --file sigma_env.yml
+
+# Install MaShClust
+git clone git@github.com:BioinformaticsToolsmith/Identity.git
+cd Identity
+mkdir bin
+cd bin
+cmake ..
+make
+cp identity meshclust libmain.so libclustering.so <path in your system PATH variable>
+
+# configure CheckV
+conda activate sigma
+checkv download_database <path_to_checkv_db>
+# you might also want to add this path to your system env or you might as well skip that and provide path while running SigMa
+export CHECKVDB=<path_to_checkv_db>
+```
 ### Requirements
-- python3
-- ncbi-blast
-- mmseqs2
-- diamond
-- MeShClust
-- CheckV
+  - diamond==2.0.15
+  - mmseqs==14.7e284
+  - pandas>=1.4.3
+  - numpy>=1.22.3
+  - biopython>=1.78
+  - blast>=2.13.0
+  - checkv>=1.0.1 (requires database initialization)
+  - MeShClust (requires a separate installation)
 
 ## Reference datasets
 By default SigMa relies on the following datasets:
@@ -47,7 +73,10 @@ Let's create the db directory.
 
 Now let's prepare pps database running provided script. It takes GenBank and FASTA files as input and generates protein and nucleotide clustered files produced with MMSeqs and [MeShClust](https://github.com/BioinformaticsToolsmith/Identity).
 
-`python3 scripts/prepdb.py --gb ./data/pps.gb.gz --dbdir ./dbs --threads 4 --tmp ./tmp`
+```bash
+conda activate sigma
+python scripts/prepdb.py --gb ./data/pps.gb.gz --dbdir ./dbs --threads 4 --tmp ./tmp`
+```
 
 To download PHROGS MMSeqs HMM profiles you can use these commands:
 
@@ -63,9 +92,10 @@ We'll download all phage genbanks as we'll cluster them anyway and it's easier t
 
 
 ```bash
+conda activate sigma
 curl http://inphared.s3.climb.ac.uk/1Oct2022_phages_downloaded_from_genbank.gb -o inphared.gb
 # consider more threads as this one might take a while
-python3 scripts/prepdb.py --gb inphared.gb --dbdir ./dbs --threads 4 --tmp ./tmp
+python scripts/prepdb.py --gb inphared.gb --dbdir ./dbs --threads 4 --tmp ./tmp
 rm inphared.gb
 ```
 
