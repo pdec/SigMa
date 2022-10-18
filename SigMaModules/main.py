@@ -94,17 +94,23 @@ def main():
 
     args.logger = create_logger(os.path.join(args.outdir, 'log.txt'))
     
-    log_progress(f"Starting SigMa analysis", loglevel = "INFO")
-    log_progress(f"Command: " + ' '.join(sys.argv), loglevel = "ERROR")
-    log_progress(f"Output directory: {args.outdir}", loglevel = "WARNING")
-    log_progress(f"Number of threads: {args.threads}", loglevel = "CRITICAL")
-    log_progress(f"Version: {__version__}", loglevel = "DEBUG")
+    log_progress(f"Starting SigMa v.{__version__} analysis", loglevel = "INFO")
+    log_progress(f"Command: " + ' '.join(sys.argv), loglevel = "INFO")
+    log_progress(f"Output directory: {args.outdir}", loglevel = "INFO")
+    log_progress(f"# of threads: {args.threads}", loglevel = "INFO")
 
     # check if reference and query datasets are the same length
-    if len(args.reference) != len(args.reference_type) or len(args.query) != len(args.query_type):
-        log_progress('Reference and query datasets must be the same length.')
-        sys.exit(1)
+    if len(args.reference) != len(args.reference_type):
+        if len(args.reference_type) == 1:
+            args.reference_type = args.reference_type * len(args.reference)
+
+    if len(args.query) != len(args.query_type):
+        if len(args.query_type) == 1:
+            args.query_type = args.query_type * len(args.query)
     
+    log_progress(f"# of reference datasets: {len(args.reference)}", loglevel = "INFO")
+    log_progress(f"# of query datasets: {len(args.query)}", loglevel = "INFO")
+    exit()
     # declare SigMa object
     sigma = SigMa(args)
 
