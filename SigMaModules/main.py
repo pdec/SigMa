@@ -110,7 +110,7 @@ def main():
     
     log_progress(f"# of reference datasets: {len(args.reference)}", loglevel = "INFO")
     log_progress(f"# of query datasets: {len(args.query)}", loglevel = "INFO")
-    exit()
+    
     # declare SigMa object
     sigma = SigMa(args)
 
