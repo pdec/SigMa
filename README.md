@@ -87,6 +87,34 @@ mv phrogs_mmseqs_db/phrogs_profile_db* ./dbs/
 rm -r phrogs_mmseqs_db*
 ```
 
+However, we have noticed that to use the newest MMSeqs v.14 profile database needs to be recreated.
+You can use the following commands to achieve that. Note that it might take a while to perform, but you need to do it once.
+
+```bash
+%%bash
+# download MSA FASTA files
+wget https://phrogs.lmge.uca.fr/downloads_from_website/MSA_phrogs.tar.gz
+tar zxf MSA_phrogs.tar.gz
+# get easel miniaps to  convert MSA
+git clone https://github.com/EddyRivasLab/easel
+cd easel
+autoconf
+./configure
+make
+make check 
+cd ..
+# convert MSAs to stockholm format
+for f in $(ls MSA_Phrogs_M50_FASTA); do ./easel/miniapps/esl-reformat stockholm MSA_Phrogs_M50_FASTA/$f; done | gzip > phrogs.msa.sto.gz
+# create MMseqs profile DB
+conda run -n sigma mmseqs convertmsa phrogs.msa.sto.gz msaDb
+conda run -n sigma mmseqs msa2profile msaDb phrogsProfileDB 
+# clean up
+rm -r MSA_*
+rm -r easel
+rm phrogs.msa.sto.gz 
+rm msaDb*
+```
+
 To download INPHARED latest database you cas use these commands but remember to modify the date.
 We'll download all phage genbanks as we'll cluster them anyway and it's easier to download the whole file but you may just download all genbanks based on <date>_data_excluding_refseq.tsv file.
 
