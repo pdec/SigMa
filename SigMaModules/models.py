@@ -82,20 +82,40 @@ class SigMa():
         # search queries
         for qi, query in enumerate(self.queries, 1):
             for rqi, record_query in enumerate(query.get_record_queries(), 1):
+                # sanity checks to avoid unnecessary searches
+                if not record_query.has_nt() and not record_query.has_aa():
+                    log_progress(f"Searching {record_query} skipped - no sequences", msglevel = 0, loglevel = "WARNING")
+                    continue
+                elif record_query.len() < self.args.min_nt_sig:
+                    log_progress(f"Searching {record_query} skipped - too short ({record_query.len()}) to match min. signal length ({self.args.min_nt_sig})", msglevel = 0, loglevel = "WARNING")
+                    continue
+                else:
+                    log_progress(f"Searching {record_query}", msglevel = 0, loglevel = "INFO")
+
                 # prepare query files
-                log_progress(f"Searching {record_query}", msglevel = 0, loglevel = "INFO")
                 query_nt_path = os.path.join(query_dir, f'q{qi}_r{rqi}_nt.fasta')
                 query_aa_path = os.path.join(query_dir, f'q{qi}_r{rqi}_aa.fasta')
                 output_prefix = os.path.join(search_dir, f'q{qi}_r{rqi}')
-                self.write_fastas(record_query.get_fasta_nt(), query_nt_path)
-                self.write_fastas(record_query.get_fasta_aa(), query_aa_path)
+                
+                # write query files
+                if record_query.has_nt():
+                    self.write_fastas(record_query.get_fasta_nt(), query_nt_path)
+                else:
+                    log_progress(f"Query {record_query} has no nucleotide sequences. Not writing.", msglevel = 1, loglevel = "WARNING")
+                if record_query.has_aa():
+                    self.write_fastas(record_query.get_fasta_aa(), query_aa_path)
+                else:
+                    log_progress(f"Query {record_query} has no proteins. Not writing.", msglevel = 1, loglevel = "WARNING")
+
 
                 for target in sorted(self.targets, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]):
                     # search query against target
                     if target.type == 'fasta_nt':
-                        target.search(query_nt_path, output_prefix)
+                        if record_query.has_nt():
+                            target.search(query_nt_path, output_prefix)
                     else:
-                        target.search(query_aa_path, output_prefix)
+                        if record_query.has_aa():
+                            target.search(query_aa_path, output_prefix)
 
                     # parse search results
                     nt_signal_array, aa_signal_array = target.read_output(record_query)
@@ -435,6 +455,9 @@ class Target(Input):
         aa_signal_array = None
 
         output_path = output_path if output_path else self.output_paths[-1]
+        # don't read output if it doesn't exist or is empty
+        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+            return nt_signal_array, aa_signal_array
 
         if self.type == 'fasta_nt':
             for line in open(output_path, 'r'):
@@ -508,10 +531,12 @@ class Query(Input):
         if self.type == 'fasta':
             self.records = [RecordQuery(record) for record in parse_fasta(self.file_path)]
         elif self.type == 'genbank':
+            cnt = 0
             for record in parse_genbank(self.file_path):
                 self.records.append(RecordQuery(record))
                 self.cdss.extend(self.records[-1].get_cdss())
-                log_progress(f"{record.id}: {self.records[-1].len()} bps and {len(self.cdss)} CDSs", msglevel = 1, loglevel = "WARNING" if len(self.cdss) == 0 else "INFO")
+                log_progress(f"{record.id}: {self.records[-1].len()} bps and {len(self.cdss) - cnt} CDSs", msglevel = 1, loglevel = "WARNING" if len(self.cdss) - cnt == 0 else "INFO")
+                cnt = len(self.cdss)
 
     ### default methods ###
     def __str__(self):
@@ -626,6 +651,22 @@ class Record():
         """
 
         return signal_type in self.signal.keys()
+
+    def has_nt(self) -> bool:
+        """
+        Returns True if nt_path is not empty.
+        :return: bool
+        """
+
+        return len(self.get_record().seq) > 0
+
+    def has_aa(self) -> bool:
+        """
+        Returns True if aa_path is not empty.
+        :return: bool
+        """
+
+        return len(self.get_cdss()) > 0
 
     ### get methods ###
     def get_record(self) -> SeqRecord:
@@ -951,7 +992,6 @@ class RecordQuery(Record):
             self.regions[signal_group].append(candidate_region)
             log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 2)
 
-        log_progress(f"merging overlapping regions of {self.name}...", msglevel = 1)
         log_progress(f"found {len(self.regions['merged'])} non-overlapping regions based on {len(self.regions['nt_based'])} and {len(self.regions['aa_based'])} regions in nt and aa space", msglevel = 2)
 
 class Region(Record):
