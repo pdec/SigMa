@@ -406,15 +406,15 @@ class Target(Input):
                 os.makedirs(tmp_path)
 
             # create proteindb
-            cmd = f"mmseqs createdb {query_path} {protein_db_path}"
+            cmd = f"mmseqs createdb {query_path} {protein_db_path} -v 2"
             call_process(cmd)
 
             # make a search
-            cmd = f"mmseqs search -s {self.params.mmseqs_sens} --threads {self.params.threads} -e {self.params.mmseqs_evalue} {self.db_path} {protein_db_path} {results_path} {tmp_path}"
+            cmd = f"mmseqs search -s {self.params.mmseqs_sens} --threads {self.params.threads} -e {self.params.mmseqs_evalue} {self.db_path} {protein_db_path} {results_path} {tmp_path} -v 2"
             call_process(cmd)
 
             # create a results tsv file
-            cmd = f"mmseqs createtsv {self.db_path} {protein_db_path} {results_path} {output_path}"
+            cmd = f"mmseqs createtsv {self.db_path} {protein_db_path} {results_path} {output_path} -v 2"
             call_process(cmd)
 
             # delete tmp directory
