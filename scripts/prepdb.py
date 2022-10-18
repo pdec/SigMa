@@ -7,6 +7,7 @@ import os
 import sys
 import shutil
 from typing import List
+from Bio.Seq import UndefinedSequenceError
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from SigMaModules.read import parse_fasta, parse_genbank
@@ -151,8 +152,12 @@ def main():
             aa_out = open(aa_file, 'w')
             nt_out = open(nt_file, 'w')
             for record in records:
-                if len(record.seq) == 0:
-                    log_progress(f"Missing sequence for record {record.id}. Skipping.", loglevel="WARNING", msglevel=1)
+                try:
+                    if len(record.seq) == 0:
+                        log_progress(f"Missing sequence for record {record.id}. Skipping.", loglevel="WARNING", msglevel=1)
+                        continue
+                except UndefinedSequenceError:
+                    log_progress(f"Problem with nucleotide sequence for record {record.id}. Skipping.", loglevel="WARNING", msglevel=1)
                     continue
                 # write nt
                 nt_cnt += 1
