@@ -709,7 +709,7 @@ class Record():
         """
 
         flist = []
-        for fcnt, feature in enumerate(self.record.features, 1):
+        for fcnt, feature in enumerate(sorted(self.record.features, key = lambda x: (x.location.start, x.location.end - x.location.start), reverse = False), 1):
             if feature.type == ftype:
                 if ftype == 'CDS':
                     if 'translation' not in feature.qualifiers:
@@ -720,7 +720,7 @@ class Record():
                         feature.qualifiers['record_id'] = [self.record.id]
                 flist.append(feature)
         
-        return sorted(flist, key = lambda x: (x.location.start, x.location.end - x.location.start), reverse = False)
+        return flist
 
     def get_cds_header_and_aa(cds: SeqFeature) -> List[str]:
         """
