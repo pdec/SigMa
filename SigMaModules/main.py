@@ -35,11 +35,20 @@ def main():
         'combined',
     ]
 
+    LOGGING = [
+        'DEBUG',
+        'INFO',
+        'WARNING',
+        'ERROR',
+        'CRITICAL',
+    ]
+
     ### Run
     parser.add_argument('-o', '--outdir', help='Output directory', metavar = '<path>', required=True)
     parser.add_argument('-b', '--batches', help='Number of batches to run on input files [%(default)i]', default = 1, metavar = '<num>', type = int)
     parser.add_argument('-t', '--threads', help='Number of threads to use for data preparation [%(default)i]', default = 4, metavar = '<num>', type = int)
     parser.add_argument('-v', '--version', help='Show program\'s version and exit.', action='version', version='%(prog)s 0.1')
+    parser.add_argument('-l', '--logging', help='Output logging level [%(default)s]. Allowed options: %(choices)s', default = 'INFO', choices = LOGGING, metavar = ' ', type = str)
     
     ### Setup
     parser_setup.add_argument('-r', '--reference', nargs = '+', help='Reference dataset(s)', metavar = '<path>', type = str, action = 'extend', required = True)
@@ -92,7 +101,7 @@ def main():
     if not os.path.exists(args.outdir):
         os.makedirs(args.outdir)
 
-    args.logger = create_logger(os.path.join(args.outdir, 'log.txt'))
+    args.logger = create_logger(os.path.join(args.outdir, 'log.txt'), log_level=args.logging)
     
     log_progress(f"Starting SigMa v.{__version__} analysis", loglevel = "INFO")
     log_progress(f"Command: " + ' '.join(sys.argv), loglevel = "INFO")
@@ -130,7 +139,8 @@ def main():
     candidate_regions = sigma.filter_regions(sig_group = 'merged')
     if len(candidate_regions) > 0:
         # list candidate regions
-        log_progress("List of candidate regions:", msglevel = 0, loglevel = "INFO")
+        log_progress(f"List of {len(candidate_regions)} candidate regions:", msglevel = 0, loglevel = "INFO")
+        sigma.list_regions(candidate_regions)
 
         # write cadidate regions
         sigma.write_regions(candidate_regions, 'candidate')
@@ -142,7 +152,7 @@ def main():
         sigma.run_checkv()
 
         # list all verified regions
-        log_progress("List of all regions:", msglevel = 0, loglevel = "INFO")
+        log_progress("Candidates after evaluation", msglevel = 0, loglevel = "INFO")
         sigma.list_regions(candidate_regions)
 
         # filter only high-quality regions

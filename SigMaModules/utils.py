@@ -20,7 +20,7 @@ class CustomHelpFormatter(argparse.HelpFormatter):
         args_string = self._format_args(action, default)
         return ', '.join(action.option_strings) + ' ' + args_string
 
-def create_logger(log_path):
+def create_logger(log_path : str, log_level : str = logging.INFO):
     """
     Create a logger.
     :param log_path: path to log file
@@ -28,7 +28,7 @@ def create_logger(log_path):
     # logger
     logFormatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d [%(levelname)-8.8s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('SigMa')
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(log_level)
     # file logger
     fileHandler = logging.FileHandler(log_path)
     fileHandler.setFormatter(logFormatter)
@@ -110,18 +110,17 @@ def call_process(cmd, program : str = ''):
     :param cmd: a command string to run
     """
 
-    log_progress(f"running: {cmd}", msglevel=1)
+    log_progress(f"running: {cmd}", msglevel=2, loglevel="DEBUG")
     if not program: program = cmd.split()[0]
     start_time = datetime.datetime.now()
     with subprocess.Popen(cmd, shell=True, universal_newlines=True, bufsize=1, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
         with process.stdout:
             for line in process.stdout:
                 if not line.strip(): continue
-                log_progress(f"{program}: {line.strip()}", msglevel = 2, loglevel = "INFO")
+                log_progress(f"{program}: {line.strip()}", msglevel = 2, loglevel = "DEBUG")
     end_time = datetime.datetime.now()
     time_taken = end_time - start_time
-    log_progress(f"time taken: {time_taken}", msglevel=1)
-    return
+    log_progress(f"time taken: {time_taken}", msglevel=2, loglevel='DEBUG')
 
 def list_databases(dbs : Dict[str, str]) -> str:
     """
@@ -131,7 +130,7 @@ def list_databases(dbs : Dict[str, str]) -> str:
     """
 
     for db_type, db_paths in dbs.items():
-        log_progress(db_type, msglevel = 1)
+        log_progress(db_type, msglevel = 1, loglevel = "INFO")
         for db_path in db_paths:
-            log_progress(db_path, msglevel = 2)
+            log_progress(db_path, msglevel = 2, loglevel = "INFO")
     
