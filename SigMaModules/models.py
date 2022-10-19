@@ -884,6 +884,9 @@ class RecordQuery(Record):
             log_progress(f"{signal_group} evaluation of {self.name}", msglevel = 2, loglevel='DEBUG')
             for target, signal_array in self.signals[signal_group].items():
                 log_progress(f"{np.count_nonzero(signal_array)} {'positions' if signal_group == 'nt_based' else 'proteins'} based on {target}", msglevel = 3, loglevel='DEBUG')
+                # don't perform evaluation if less than min_sig_signals
+                if np.count_nonzero(signal_array) < min_sig_signals: 
+                    continue
                 i_pos = -1
                 i_gap = -1
                 pos_len = 0
@@ -936,18 +939,19 @@ class RecordQuery(Record):
 
                 # when the gap was not big enough at the end, consider the last region
                 if (gap_size < max_gap_size) and (pos_len >= min_sig_signals) and (pos_len / (len(region_values) - gap_size + 1) >= min_signal_frac):
+                        z_pos = i - gap_size # last positive signal
                         if signal_group == 'nt_based':
                             region_start = i_pos
-                            region_end = i_gap - max_gap_size + 1
+                            region_end = z_pos
                         elif signal_group == 'aa_based':
                             region_start = self.cdss[i_pos].location.nofuzzy_start
-                            region_end = self.cdss[i_gap - max_gap_size + 1].location.nofuzzy_end
+                            region_end = self.cdss[z_pos].location.nofuzzy_end
                         candidate_region = Region(
                             record = self.get_record()[region_start : region_end],
                             start = region_start,
                             end = region_end,
                             signal_source = target,
-                            signal = signal_array[i_pos : i_gap - max_gap_size + 1],
+                            signal = signal_array[i_pos : z_pos],
                             signal_group = signal_group,
                             rno = len(self.regions[signal_group]) + 1,
                             )
