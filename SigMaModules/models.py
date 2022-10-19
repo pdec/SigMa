@@ -532,7 +532,7 @@ class Query(Input):
             self.records = [RecordQuery(record) for record in parse_fasta(self.file_path)]
         elif self.type == 'genbank':
             cnt = 0
-            for record in parse_genbank(self.file_path):
+            for record in sorted(parse_genbank(self.file_path), key = lambda x: len(x.seq), reverse=True):
                 self.records.append(RecordQuery(record))
                 self.cdss.extend(self.records[-1].get_cdss())
                 log_progress(f"{record.id}: {self.records[-1].len()} bps and {len(self.cdss) - cnt} CDSs", msglevel = 1, loglevel = "WARNING" if len(self.cdss) - cnt == 0 else "INFO")
