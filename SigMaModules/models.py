@@ -113,15 +113,20 @@ class SigMa():
 
                 for target in sorted(self.targets, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]):
                     # search query against target
+                    output_path = ''
                     if target.type == 'fasta_nt':
                         if record_query.has_nt():
-                            target.search(query_nt_path, output_prefix)
+                            output_path = target.search(query_nt_path, output_prefix)
                     else:
                         if record_query.has_aa():
-                            target.search(query_aa_path, output_prefix)
+                            output_path = target.search(query_aa_path, output_prefix)
+
+                    # add signal only if output file exists and is not empty
+                    if not output_path or (not os.path.exists(output_path) and os.path.getsize(output_path) > 0):
+                        continue
 
                     # parse search results
-                    nt_signal_array, aa_signal_array = target.read_output(record_query)
+                    nt_signal_array, aa_signal_array = target.read_output(record_query, output_path)
                     signal_group = 'nt_based'
                     if nt_signal_array is not None:
                         record_query.add_signal(signal_group, target.name, nt_signal_array)
@@ -395,10 +400,12 @@ class Target(Input):
         elif self.type == 'mmseqs_db':
             self.db_path = self.file_path        
 
-    def search(self, query_path : str, output_prefix : str):
+    def search(self, query_path : str, output_prefix : str) -> str:
         """
         Run search
         :param query_path: path to FASTA file
+        :param output_prefix: prefix for output files
+        :return: path to output file
         """
         
         self.output_paths.append(f"{output_prefix}.{self.name}.{self.type}.tsv")
@@ -406,7 +413,7 @@ class Target(Input):
 
         if self.params.reuse and os.path.exists(output_path):
             log_progress(f"reusing {output_path}", msglevel=1, loglevel="INFO")
-            return
+            return output_path
         else:
             log_progress(f"searching against {self.name}", msglevel = 1, loglevel = "INFO")
 
@@ -443,9 +450,9 @@ class Target(Input):
             # delete tmp directory
             shutil.rmtree(tmp_path)
 
-        return
+        return output_path
 
-    def read_output(self, record_query, output_path : str = None) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+    def read_output(self, record_query, output_path : str) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
         """
         Read diamond output and return information about regions with signal
         :param file_path: path to diamond output file
@@ -457,7 +464,6 @@ class Target(Input):
         nt_signal_array = None
         aa_signal_array = None
 
-        output_path = output_path if output_path else self.output_paths[-1]
         # don't read output if it doesn't exist or is empty
         if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
             return nt_signal_array, aa_signal_array
@@ -538,7 +544,7 @@ class Query(Input):
             for record in sorted(parse_genbank(self.file_path), key = lambda x: len(x.seq), reverse=True):
                 self.records.append(RecordQuery(record))
                 self.cdss.extend(self.records[-1].get_cdss())
-                log_progress(f"{record.id}: {self.records[-1].len()} bps and {len(self.cdss) - cnt} CDSs", msglevel = 1, loglevel = "WARNING" if len(self.cdss) - cnt == 0 else "DEBUG")
+                log_progress(f"{record.id}: {self.records[-1].len()} bps and {len(self.cdss) - cnt} CDSs", msglevel = 1, loglevel = "DEBUG")
                 cnt = len(self.cdss)
 
     ### default methods ###
@@ -702,7 +708,13 @@ class Record():
         :return: int
         """
 
-        return self.cdss_idx[cds_id]
+        try:
+            return self.cdss_idx[cds_id]
+        except KeyError:
+            log_progress(f"Could not find CDS {cds_id} in record {self.record.id}", msglevel = 1, loglevel = "ERROR")
+            log_progress(f"Available CDSs: {self.cdss_idx.items()}", msglevel = 1, loglevel = "ERROR")
+            log_progress(f"Available CDSs: {[cds.qualifiers['protein_id'][0] for cds in self.cdss]}", msglevel = 1, loglevel = "ERROR")
+            raise KeyError
 
     def get_features_of_type(self, ftype: str) -> List[SeqFeature]:
         """
