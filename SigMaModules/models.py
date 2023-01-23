@@ -29,14 +29,22 @@ class SigMa():
         self.regions: List[Region] = []
         self.hq_regions: List[Region] = []
         self.args = args
+        self.dirs = {}
+
+        # setup output directories
+        directories = ['reference', 'query', 'search', 'artemis_plots', 'regions', 'checkv']
+        for dir_name in directories:
+            if dir_name == 'artemis_plots' and not args.artemis_plots:
+                continue
+            dir_path = os.path.join(self.args.outdir, dir_name)
+            self.dirs[dir_name] = dir_path
+            if not os.path.exists(dir_path):
+                os.makedirs(dir_path)
+
 
     ### custom methods ###
     def prepare_targets(self):
         log_progress("Preparing references", msglevel = 0, loglevel = "INFO")
-        # make reference directory
-        ref_dir = os.path.join(self.args.outdir, 'reference')
-        if not os.path.exists(ref_dir):
-            os.makedirs(ref_dir)
     
         for ref_dataset_path, ref_type in zip(self.args.reference, self.args.reference_type):
             # create target object
@@ -48,7 +56,7 @@ class SigMa():
                     )
                 )
             # prepare database if needed
-            self.targets[-1].prepare(ref_dir)
+            self.targets[-1].prepare(self.dirs['reference'])
 
         log_progress("Reference prepared", msglevel=0, loglevel="INFO")
         for target in self.targets:
@@ -73,11 +81,6 @@ class SigMa():
         :return: None
         """
         log_progress("Searching queries", msglevel = 0, loglevel = "INFO")
-        # prepare directory and output files paths
-        query_dir = os.path.join(self.args.outdir, 'query')
-        if not os.path.exists(query_dir): os.makedirs(query_dir)
-        search_dir = os.path.join(self.args.outdir, 'search')
-        if not os.path.exists(search_dir): os.makedirs(search_dir)
 
         # search queries
         q_num = len(self.queries)
@@ -96,9 +99,9 @@ class SigMa():
                     log_progress(f"[{done}] Searching {record_query}", msglevel = 0, loglevel = "INFO")
 
                 # prepare query files
-                query_nt_path = os.path.join(query_dir, f'q{qi}_r{rqi}_nt.fasta')
-                query_aa_path = os.path.join(query_dir, f'q{qi}_r{rqi}_aa.fasta')
-                output_prefix = os.path.join(search_dir, f'q{qi}_r{rqi}')
+                query_nt_path = os.path.join(self.dirs['query'], f'q{qi}_r{rqi}_nt.fasta')
+                query_aa_path = os.path.join(self.dirs['query'], f'q{qi}_r{rqi}_aa.fasta')
+                output_prefix = os.path.join(self.dirs['search'], f'q{qi}_r{rqi}')
                 
                 # write query files
                 if record_query.has_nt():
@@ -207,8 +210,7 @@ class SigMa():
 
         log_progress("Running CheckV", msglevel = 0, loglevel = "INFO")
         # prepare output file path
-        checkv_dir = os.path.join(self.args.outdir, 'checkv')
-        if not os.path.exists(checkv_dir): os.makedirs(checkv_dir)
+        checkv_dir = self.dirs['checkv']
         checkv_env = '' if not self.args.checkv_env else f"conda run -n {self.args.checkv_env} "
         checkv_db = '' if not self.args.checkv_db else f" -d {self.args.checkv_db} "
         cmd = f"{checkv_env}checkv end_to_end {checkv_db} {self.args.outdir}/regions/candidate.fasta {checkv_dir} -t {self.args.threads} --remove_tmp"
@@ -262,8 +264,7 @@ class SigMa():
         """
         log_progress(f"Writing regions", msglevel = 0, loglevel = "INFO")
         # prepare output file paths
-        regions_dir = os.path.join(self.args.outdir, f"regions")
-        if not os.path.exists(regions_dir): os.makedirs(regions_dir)
+        regions_dir = self.dirs['regions']
         if isinstance(format, str):
             format = [format]
         
@@ -346,8 +347,7 @@ class SigMa():
 
         log_progress("Writing Artemis plot files", msglevel = 0, loglevel = "INFO")
         # prepare output file path
-        artemis_dir = os.path.join(self.args.outdir, 'artemis_plots')
-        if not os.path.exists(artemis_dir): os.makedirs(artemis_dir)
+        artemis_dir = self.dirs['artemis_plots']
         for record_query in self.record_queries:
             record_query.artemis_plot(artemis_dir)
 
@@ -977,9 +977,9 @@ class RecordQuery(Record):
         if 'combined' in self.signals['nt_based'].keys():
             merged_signal += self.signals['nt_based']['combined']
         else:
-            for signal_group in self.signals.keys():
-                for signal_array in self.signals[signal_group].values():
-                    merged_signal += signal_array
+            # for signal_group in self.signals['nt_based'].keys():
+            for signal_array in self.signals['nt_based'].values():
+                merged_signal += signal_array
 
         # overlay positions of regions
         for region in regions:
