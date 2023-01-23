@@ -387,7 +387,7 @@ class Target(Input):
         :param outdir_path: path to output directory
         """
 
-        log_progress(f"Creating reference nucleotide database from {self.name}", msglevel=1, loglevel="INFO")
+        log_progress(f"Creating reference {self.type} database from {self.name}", msglevel=1, loglevel="INFO")
         # set db_path and results_path
         self.db_path = os.path.join(outdir_path, f"{self.name}.db")
 

@@ -67,7 +67,7 @@ def main():
     parser_search.add_argument('--aa_evalue', help='Maximum amino acid e-value [%(default)1.0e]', default = 1e-5, metavar = ' ', type = float)
     parser_search.add_argument('--aa_qscovs', help='Minimum query and subject HSP coverages [%(default)i]', default = 90, metavar = ' ', type = float)
     # hmm-based
-    parser_search.add_argument('--hmm_evalue', help='Maximum hmm e-value [%(default)1.0e]', default = 1e-10, metavar = ' ', type = float)
+    # parser_search.add_argument('--hmm_evalue', help='Maximum hmm e-value [%(default)1.0e]', default = 1e-10, metavar = ' ', type = float)
     # mmseqs2-based
     parser_search.add_argument('--mmseqs_sens', help='MMseqs2 search sensitivity [%(default).1f]', default = 5.7, metavar = ' ', type = float)
     parser_search.add_argument('--mmseqs_evalue', help='MMseqs2 maximum e-value [%(default)1.0e]', default = 1e-5, metavar = ' ', type = float)
@@ -120,6 +120,16 @@ def main():
     log_progress(f"# of reference datasets: {len(args.reference)}", loglevel = "INFO")
     log_progress(f"# of query datasets: {len(args.query)}", loglevel = "INFO")
     
+    # check if all files exist and are not empty
+    log_progress("Checking input query files", loglevel = "INFO")
+    for infile in args.query:
+        if not os.path.exists(infile):
+            log_progress(f"Input file {infile} does not exist", loglevel = "ERROR")
+            sys.exit(1)
+        if os.path.getsize(infile) == 0:
+            log_progress(f"Input file {infile} is empty", loglevel = "ERROR")
+            sys.exit(1)
+
     # declare SigMa object
     sigma = SigMa(args)
 

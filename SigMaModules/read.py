@@ -8,6 +8,7 @@ import gzip
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from typing import List
+from .utils import log_progress
 
 
 def is_gzip_file(file_path: str) -> bool:
@@ -34,7 +35,7 @@ def parse_genbank(file_path: str, verbose=False) -> List[SeqRecord]:
         else:
             handle = open(file_path, 'r')
     except IOError as e:
-        print(f"There was an error opening {file_path}", file=sys.stderr)
+        log_progress(f"There was an error opening {file_path}", msglevel = 0, loglevel = "ERROR")
         sys.exit(20)
 
     return list(SeqIO.parse(handle, "genbank"))
@@ -52,7 +53,7 @@ def parse_fasta(file_path: str, verbose=False) -> List[SeqRecord]:
         else:
             handle = open(file_path, 'r')
     except IOError as e:
-        print(f"There was an error opening {file_path}", file=sys.stderr)
+        log_progress(f"There was an error opening {file_path}", msglevel = 0, loglevel = "ERROR")
         sys.exit(20)
 
     return list(SeqIO.parse(handle, "fasta"))
