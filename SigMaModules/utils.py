@@ -5,6 +5,7 @@ A helper module with small utility commands.
 import argparse
 import datetime
 import logging
+import os
 import subprocess
 import sys
 from typing import Dict, List, Tuple
@@ -20,13 +21,16 @@ class CustomHelpFormatter(argparse.HelpFormatter):
         args_string = self._format_args(action, default)
         return ', '.join(action.option_strings) + ' ' + args_string
 
-def create_logger(log_path : str, log_level : str = logging.INFO):
+def create_logger(log_path : str, log_level : str = logging.INFO, simple : bool = False):
     """
     Create a logger.
     :param log_path: path to log file
     """
     # logger
-    logFormatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d [%(levelname)-8.8s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    if simple:
+        logFormatter = logging.Formatter(fmt='%(message)s')
+    else:
+        logFormatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d [%(levelname)-8.8s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('SigMa')
     logger.setLevel(log_level)
     # file logger
