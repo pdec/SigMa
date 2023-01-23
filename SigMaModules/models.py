@@ -62,6 +62,106 @@ class SigMa():
         for target in self.targets:
             log_progress(f"{target}", msglevel = 1, loglevel = "INFO")
 
+    def handle_queries(self):
+        """
+        Runs analyses for each input query from reading to signal evaluation
+        :return: None
+        """
+        log_progress("Handling queries", msglevel = 0, loglevel = "INFO")
+
+        # prepare counters
+        q_num = len(self.args.query)
+        r_num = 0 # regions
+        rm_num = 0 # regions merged
+        qi = 0
+        for query_type, query_dataset_path in zip(self.args.query_type, self.args.query):
+            # READ QUERY
+            qi += 1
+            done_q = f"{qi}/{q_num}"
+            log_progress(f"[{done_q}] Query: {query_dataset_path}", msglevel = 0, loglevel = "INFO")
+            self.queries.append(
+                # create Query object
+                Query(
+                    file_path = query_dataset_path,
+                    type = query_type
+                    )
+                )
+
+            # SEARCH QUERY AGAINST TARGETS
+            rqi = 0
+            rq_num = len(self.queries[-1].get_record_queries())
+            for record_query in self.queries[-1].get_record_queries():
+                rqi += 1
+                # just link RecordQueries to SigMa
+                self.record_queries.append(record_query)
+                # counter for progress
+                done_rq = f"{rqi}/{rq_num}"
+                if not record_query.has_nt() and not record_query.has_aa():
+                    log_progress(f"[{done_q} - {done_rq}] Searching {record_query} skipped - no sequences", msglevel = 1, loglevel = "DEBUG")
+                    continue
+                elif record_query.len() < self.args.min_nt_sig:
+                    log_progress(f"[{done_q} - {done_rq}] Searching {record_query} skipped - too short)", msglevel = 1, loglevel = "DEBUG")
+                    continue
+                else:
+                    log_progress(f"[{done_q} - {done_rq}] Searching {record_query}", msglevel = 1, loglevel = "DEBUG")
+
+                # prepare query files
+                query_nt_path = os.path.join(self.dirs['query'], f'q{qi}_r{rqi}_nt.fasta')
+                query_aa_path = os.path.join(self.dirs['query'], f'q{qi}_r{rqi}_aa.fasta')
+                output_prefix = os.path.join(self.dirs['search'], f'q{qi}_r{rqi}')
+                
+                # write query files
+                if record_query.has_nt():
+                    self.write_fastas(record_query.get_fasta_nt(), query_nt_path)
+                else:
+                    log_progress(f"Query {record_query} has no nucleotide sequences. Not writing.", msglevel = 2, loglevel = "WARNING")
+                if record_query.has_aa():
+                    self.write_fastas(record_query.get_fasta_aa(), query_aa_path)
+                else:
+                    log_progress(f"Query {record_query} has no proteins. Not writing.", msglevel = 2, loglevel = "WARNING")
+
+                for target in sorted(self.targets, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]):
+                    # search query against target
+                    output_path = ''
+                    if target.type == 'fasta_nt':
+                        if record_query.has_nt():
+                            output_path = target.search(query_nt_path, output_prefix)
+                    else:
+                        if record_query.has_aa():
+                            output_path = target.search(query_aa_path, output_prefix)
+
+                    # add signal only if output file exists and is not empty
+                    if not output_path or (not os.path.exists(output_path) and os.path.getsize(output_path) > 0):
+                        continue
+
+                    # parse search results
+                    nt_signal_array, aa_signal_array = target.read_output(record_query, output_path)
+                    signal_group = 'nt_based'
+                    if nt_signal_array is not None:
+                        record_query.add_signal(signal_group, target.name, nt_signal_array)
+                    if aa_signal_array is not None and target.type != 'fasta_nt':
+                        signal_group = 'aa_based'
+                        record_query.add_signal(signal_group, target.name, aa_signal_array)
+                
+                # combine signals
+                if self.args.combine: record_query.combine_signals()
+
+                # print signal summary
+                record_query.print_signal_summary()
+
+                # EVALUATE SIGNALS
+                log_progress(f"[{done_q} - {done_rq}] Evaluating {record_query}", msglevel = 1, loglevel = "DEBUG")
+                record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
+                record_query.merge_regions()
+                for regions in record_query.get_regions().values():
+                    self.regions.extend(regions)
+
+
+            log_progress(f" {len(self.filter_regions(sig_group = 'merged')) - rm_num} unqiue regions ({len(self.regions) - r_num} in total) were identified", msglevel = 1, loglevel = "INFO")
+            rm_num = len(self.filter_regions(sig_group = 'merged'))
+            r_num = len(self.regions)
+
+    # not used - as of now
     def prepare_queries(self):
         log_progress("Preparing queries", msglevel = 0, loglevel = "INFO")
         for query_type, query_dataset_path in zip(self.args.query_type, self.args.query):
@@ -75,6 +175,7 @@ class SigMa():
             # link RecordQueries
             self.record_queries.extend(self.queries[-1].get_record_queries())
 
+    # not used - as of now
     def search_queries(self) -> None:
         """
         Search queries against references
@@ -143,6 +244,7 @@ class SigMa():
                 # print signal summary
                 record_query.print_signal_summary()
 
+    # not used - as of now
     def evaluate_signals(self) -> None:
         """
         Evaluate signals
@@ -415,7 +517,7 @@ class Target(Input):
             log_progress(f"reusing {output_path}", msglevel=1, loglevel="INFO")
             return output_path
         else:
-            log_progress(f"searching against {self.name}", msglevel = 1, loglevel = "INFO")
+            log_progress(f"searching against {self.name}", msglevel = 1, loglevel = "DEBUG")
 
         if self.type == 'fasta_nt':
             cmd = 'blastn -query {} -db {} -out {} -outfmt "6 qaccver saccver pident length qstart qend evalue" -evalue {} -perc_identity {} -num_threads {} -max_target_seqs 10000'.format(query_path, self.db_path, output_path, self.params.nt_evalue, self.params.nt_pident, self.params.threads)
@@ -826,9 +928,9 @@ class RecordQuery(Record):
         
         for signal_group, signal_names in self.signals.items():
             if len(self.signals[signal_group]) == 0: continue
-            log_progress(f"{signal_group} signal group for {self.name}:", msglevel = 1, loglevel='INFO')
+            log_progress(f"{signal_group} signal group for {self.name}:", msglevel = 1, loglevel='DEBUG')
             for signal_name, signal in signal_names.items():
-                log_progress(f"{signal_name}: {sum([1 if x else 0 for x in signal])}/{signal.size} of total {sum(signal)}", msglevel = 2, loglevel='INFO')
+                log_progress(f"{signal_name}: {sum([1 if x else 0 for x in signal])}/{signal.size} of total {sum(signal)}", msglevel = 2, loglevel='DEBUG')
 
     def artemis_plot(self, output_dir : str) -> None:
         """
@@ -881,9 +983,9 @@ class RecordQuery(Record):
                 continue
             min_signal_frac = min_sig_frac
         
-            log_progress(f"{signal_group} evaluation of {self.name}", msglevel = 2, loglevel='DEBUG')
+            log_progress(f"{signal_group} evaluation of {self.name}", msglevel = 1, loglevel='DEBUG')
             for target, signal_array in self.signals[signal_group].items():
-                log_progress(f"{np.count_nonzero(signal_array)} {'positions' if signal_group == 'nt_based' else 'proteins'} based on {target}", msglevel = 3, loglevel='DEBUG')
+                log_progress(f"{np.count_nonzero(signal_array)} {'positions' if signal_group == 'nt_based' else 'proteins'} based on {target}", msglevel = 2, loglevel='DEBUG')
                 # don't perform evaluation if less than min_sig_signals
                 if np.count_nonzero(signal_array) < min_sig_signals: 
                     continue
@@ -926,7 +1028,7 @@ class RecordQuery(Record):
                                     )
                                 
                                 self.regions[signal_group].append(candidate_region)
-                                log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 4, loglevel='DEBUG')
+                                log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 3, loglevel='DEBUG')
                             else:
                                 # thresholds unmet
                                 pass
@@ -956,7 +1058,7 @@ class RecordQuery(Record):
                             rno = len(self.regions[signal_group]) + 1,
                             )
                         self.regions[signal_group].append(candidate_region)
-                        log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 4, loglevel='DEBUG')
+                        log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 3, loglevel='DEBUG')
 
     def merge_regions(self) -> None:
         """
@@ -967,7 +1069,7 @@ class RecordQuery(Record):
         4. If the next region overlaps completely with the previous one, remove the shorter one - as it is easier to trim rather than expand automatically or manually
         """
 
-        log_progress(f"merging overlapping regions of {self.name}", msglevel = 2, loglevel='DEBUG')
+        log_progress(f"merging overlapping regions of {self.name}", msglevel = 1, loglevel='DEBUG')
         
         # get all regions
         regions = sorted(self.regions['nt_based'] + self.regions['aa_based'], key = lambda x: [x.start, -x.len()])
@@ -1009,9 +1111,9 @@ class RecordQuery(Record):
                 rno = len(self.regions[signal_group]) + 1
                 )
             self.regions[signal_group].append(candidate_region)
-            log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 3, loglevel='DEBUG')
+            log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 2, loglevel='DEBUG')
 
-        log_progress(f"found {len(self.regions['merged'])} non-overlapping regions based on {len(self.regions['nt_based'])} and {len(self.regions['aa_based'])} regions in nt and aa space", msglevel = 2, loglevel='DEBUG')
+        log_progress(f"found {len(self.regions['merged'])} non-overlapping regions based on {len(self.regions['nt_based'])} and {len(self.regions['aa_based'])} regions in nt and aa space", msglevel = 1, loglevel='DEBUG')
 
 class Region(Record):
     """

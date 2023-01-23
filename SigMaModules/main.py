@@ -83,6 +83,7 @@ def main():
     parser_evaluate.add_argument('--min_sig_frac', help='Minimum fraction of signal within region [%(default).2f]', default = 0.5, metavar = ' ', type = float)
 
     ### Validate
+    parser_validate.add_argument('--skip_checkv', help='Do not verify candidate regions with CheckV', action = 'store_true')
     parser_validate.add_argument('--checkv_env', help='Name of the conda env with CheckV installed if not installed system-wide.', metavar = ' ', type = str)
     parser_validate.add_argument('--checkv_db', help='Path to CheckV database or if no CHECKVDB was set.', metavar = ' ', type = str)
     parser_validate.add_argument('--checkv_len', help='Minimum length of all CheckV candidates to consider [%(default)i]', default = 5000, metavar = ' ', type = int)
@@ -136,14 +137,8 @@ def main():
     # add reference datasets
     sigma.prepare_targets()
 
-    # add query datasets
-    sigma.prepare_queries()
-
-    # search query datasets
-    sigma.search_queries()
-
-    # evaluate query datasets
-    sigma.evaluate_signals()
+    # analyze query datasets one by one
+    sigma.handle_queries()
 
     # filter merged regions
     candidate_regions = sigma.filter_regions(sig_group = 'merged')
@@ -156,6 +151,10 @@ def main():
 
         # write Artemis plot files
         if args.artemis_plots: sigma.write_artemis_plots()
+
+        if args.skip_checkv:
+            log_progress('CheckV validation skipped.', msglevel = 0, loglevel = "INFO")
+            sys.exit(0)
 
         # run CheckV
         sigma.run_checkv()
