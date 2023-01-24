@@ -7,7 +7,6 @@ import os
 import sys
 import shutil
 from typing import List
-from Bio.Seq import UndefinedSequenceError
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from SigMaModules.read import parse_fasta, parse_genbank
@@ -25,7 +24,7 @@ def get_file_name(path : str) -> str:
 
     return os.path.basename(path).rsplit('.', 1)[0]
 
-def mmseqs_cluster(dbname : str, fasta_path : str, tmp_dir : str, sens : float, cov : float, cov_mode : int, id : float, evalue : float, threads : int) -> None:
+def mmseqs_cluster(dbname : str, fasta_path : str, tmp_dir : str, sens : float, cov : float, cov_mode : int, id : float, evalue : float, threads : int) -> str:
     """
     Calls MMseqs protein clustering command
     :param dbname: name of the database
@@ -98,6 +97,8 @@ def main():
     parser.add_argument('--threads', help='Number of threads [%(default)i]', default = 4, metavar = ' ', type = int)
     parser.add_argument('--tmp', help='Temporary directory', metavar = '<path>', required = True)
     parser.add_argument('--log', help='Log file', metavar = '<path>')
+    parser.add_argument('--logging', help='Logging level', metavar = '<level>', default = 'INFO', choices = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])
+    parser.add_argument('--simple_log', help='Just print messages without time and levels', action='store_true')
 
     args = parser.parse_args()
     if len(sys.argv) < 2:
@@ -119,9 +120,9 @@ def main():
 
     # create logger
     if args.log:
-        args.logger = create_logger(args.log)
+        args.logger = create_logger(log_path = args.log, log_level = args.logging, simple = args.simple_log)
     else:
-        args.logger = create_logger(os.path.join(args.dbdir, "prepdb.log"))
+        args.logger = create_logger(log_path = os.path.join(args.dbdir, "prepdb.log"), log_level = args.logging, simple = args.simple_log)
     
     log_progress("Preparing reference datasets for SigMa.", loglevel="INFO", msglevel=0)
 
@@ -156,7 +157,7 @@ def main():
                     if len(record.seq) == 0:
                         log_progress(f"Missing sequence for record {record.id}. Skipping.", loglevel="WARNING", msglevel=1)
                         continue
-                except UndefinedSequenceError:
+                except:
                     log_progress(f"Problem with nucleotide sequence for record {record.id}. Skipping.", loglevel="WARNING", msglevel=1)
                     continue
                 # write nt
