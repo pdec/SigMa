@@ -10,7 +10,7 @@ It is meant to allow incorporation of validated (manually or autoamtically) prop
 - [x] - write summary TSV
 - [ ] - managing config files or input mapping files
 - [x] - default reference datasets configuration
-- [ ] - managing iterations
+- [x] - managing batch iterations
 - [x] - determine SigMa requirements and prepare envs
 
 ### Optional

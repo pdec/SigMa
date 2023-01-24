@@ -21,10 +21,12 @@ class CustomHelpFormatter(argparse.HelpFormatter):
         args_string = self._format_args(action, default)
         return ', '.join(action.option_strings) + ' ' + args_string
 
-def create_logger(log_path : str, log_level : str = logging.INFO, simple : bool = False):
+def create_logger(log_path : str, log_level : str = "INFO", simple : bool = False):
     """
     Create a logger.
     :param log_path: path to log file
+    :param log_level: the log level to use
+    :param simple: use simple log format
     """
     # logger
     if simple:
@@ -126,7 +128,7 @@ def call_process(cmd, program : str = ''):
     time_taken = end_time - start_time
     log_progress(f"time taken: {time_taken}", msglevel=2, loglevel='DEBUG')
 
-def list_databases(dbs : Dict[str, str]) -> str:
+def list_databases(dbs : Dict[str, str]) -> None:
     """
     List available databases.
     :param dbs: a dictionary of databases
@@ -138,3 +140,86 @@ def list_databases(dbs : Dict[str, str]) -> str:
         for db_path in db_paths:
             log_progress(db_path, msglevel = 2, loglevel = "INFO")
     
+
+def make_batches(items : List, batches : int) -> Dict[str, List[str]]:
+    """
+    Make batches of items.
+    :param items: a list of items
+    :param batches: the number of batches to create
+    :return: a list of batches
+    """
+
+    batch_dict = {}
+    batch_size = int(len(items) / batches)
+    if batch_size * batches < len(items):
+        batch_size += 1
+    for i in range(1, len(items), 1):
+        batch_name = f"batch_{i:05d}"
+        batch_dict[batch_name] = items[i:i + batch_size * i]
+    
+    for batch, files in batch_dict.items():
+        log_progress(f"Batch {batch} contains {len(files)} files", msglevel = 1, loglevel = "INFO")
+
+    return batch_dict
+
+def post_batch(main_outdir : str, outdir : str, batch : str, bi : int) -> Tuple[int, int]:
+    """
+    Post a batch of files to Artemis.
+    :param main_outdir: the main output directory
+    :param outdir: the batch output directory
+    :param batch: the batch name
+    :param bi: batch number\
+    """
+
+    # combined files
+    status_tsv = os.path.join(main_outdir, 'batch_status.tsv')
+    candidates_fasta = os.path.join(main_outdir, 'all_candidates.fasta')
+    verified_gb = os.path.join(main_outdir, 'all_verified.gb')
+    candidates_tsv = os.path.join(main_outdir, 'all_candidates.tsv')
+    verified_tsv = os.path.join(main_outdir, 'all_verified.tsv')
+    verified_regions = 0
+    candidate_regions = 0
+
+    # initialize combined files
+    if bi == 1:
+        with open(status_tsv, 'w') as outf:
+            outf.write('batch_num\tbatch\tstatus\tverified\tcandidate\n')
+        with open(candidates_fasta, 'w') as outf:
+            pass
+        with open(verified_gb, 'w') as outf:
+            pass
+        with open(candidates_tsv, 'w') as outf:
+            pass
+        with open(verified_tsv, 'w') as outf:
+            pass
+
+    # batch outputs
+    verified_regions_gb = os.path.join(outdir, 'regions', 'verified.gb')
+    verified_regions_tsv = os.path.join(outdir, 'summary.verified.tsv')
+    candidate_regions_fasta = os.path.join(outdir, 'regions', 'candidate.fasta')
+    candidate_regions_tsv = os.path.join(outdir, 'summary.candidates.tsv')
+
+    # combine output files if they exist
+    if os.path.exists(verified_regions_gb):
+        with open(verified_regions_gb, 'r') as inf, open(verified_gb, 'a') as outf:
+            outf.write(inf.read())
+    if os.path.exists(verified_regions_tsv):
+        with open(verified_regions_tsv, 'r') as inf, open(verified_tsv, 'a') as outf:
+            for line in inf:
+                verified_regions += 1
+                outf.write(line)
+
+    if os.path.exists(candidate_regions_fasta):
+        with open(candidate_regions_fasta, 'r') as inf, open(candidates_fasta, 'a') as outf:
+            outf.write(inf.read())
+    if os.path.exists(candidate_regions_tsv):
+        with open(candidate_regions_tsv, 'r') as inf, open(candidates_tsv, 'a') as outf:
+            for line in inf:
+                candidate_regions += 1
+                outf.write(line)
+
+    # write batch status
+    with open(os.path.join(main_outdir, 'batch_status.tsv'), 'a') as outf:
+        outf.write(f"{bi}\t{batch}\tdone\t{verified_regions}\t{candidate_regions}\n")
+
+    return verified_regions, candidate_regions

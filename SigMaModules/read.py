@@ -7,7 +7,7 @@ import sys
 import gzip
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
-from typing import List
+from typing import List, Dict
 from .utils import log_progress
 
 
@@ -57,3 +57,45 @@ def parse_fasta(file_path: str, verbose=False) -> List[SeqRecord]:
         sys.exit(20)
 
     return list(SeqIO.parse(handle, "fasta"))
+
+def read_batch_file(batch_file: str, verbose=False) -> Dict[str, List[str]]:
+    """
+    Read a batch file and return a list of file paths
+    Format of batch file is:
+    'batch_name1
+    file1
+    file2
+    batch_name2
+    file3'
+    ...
+    :param batch_file: the batch file to read
+    :param verbose: print verbose output
+    :return: list of file paths
+
+    """
+    try:
+        if is_gzip_file(batch_file):
+            handle = gzip.open(batch_file, 'rt')
+        else:
+            handle = open(batch_file, 'r')
+    except IOError as e:
+        log_progress(f"There was an error opening {batch_file}", msglevel = 0, loglevel = "ERROR")
+        sys.exit(20)
+
+    batch_dict = {}
+    query = []
+    for line in handle:
+        line = line.strip()
+        if line.startswith('#'):
+            continue
+        if line.startswith('batch'):
+            batch_name = line
+            batch_dict[batch_name] = []
+        else:
+            batch_dict[batch_name].append(line)
+            query.append(line)
+
+    for batch, files in batch_dict.items():
+        log_progress(f"Batch {batch} contains {len(files)} files", msglevel = 1, loglevel = "INFO")
+
+    return query, batch_dict

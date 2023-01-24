@@ -157,7 +157,7 @@ class SigMa():
                     self.regions.extend(regions)
 
 
-            log_progress(f" {len(self.filter_regions(sig_group = 'merged')) - rm_num} unqiue regions ({len(self.regions) - r_num} in total) were identified", msglevel = 1, loglevel = "INFO")
+            log_progress(f" {len(self.filter_regions(sig_group = 'merged')) - rm_num} unique regions ({len(self.regions) - r_num} in total) were identified", msglevel = 1, loglevel = "INFO")
             rm_num = len(self.filter_regions(sig_group = 'merged'))
             r_num = len(self.regions)
 

@@ -2,12 +2,62 @@
 import sys
 import os
 import argparse
-import numpy as np
+import subprocess
 from typing import List
 
 from .models import SigMa
-from .utils import create_logger, log_progress, CustomHelpFormatter
+from .read import read_batch_file
+from .utils import call_process, create_logger, log_progress, make_batches, post_batch, CustomHelpFormatter
 from .version import __version__
+
+def run_sigma(args):
+    """
+    Runs a single SigMa instance
+    """
+    # declare SigMa object
+    sigma = SigMa(args)
+
+    # add reference datasets
+    sigma.prepare_targets()
+
+    # analyze query datasets one by one
+    sigma.handle_queries()
+
+    # filter merged regions
+    candidate_regions = sigma.filter_regions(sig_group = 'merged')
+    if len(candidate_regions) > 0:
+        # list candidate regions
+        log_progress(f"Selected {len(candidate_regions)} unique candidate regions", msglevel = 0, loglevel = "INFO")
+
+        # write cadidate regions
+        sigma.write_regions(candidate_regions, 'candidate')
+
+        # write Artemis plot files
+        if args.artemis_plots: sigma.write_artemis_plots()
+
+        if args.skip_checkv:
+            log_progress('CheckV validation skipped.', msglevel = 0, loglevel = "INFO")
+            return
+
+        # run CheckV
+        sigma.run_checkv()
+
+        # filter only high-quality regions
+        sigma.filter_hq_regions()
+
+        # list high-quality regions
+        log_progress(f"Selected {len(sigma.hq_regions)} high-quality regions", msglevel = 0, loglevel = "INFO")
+        sigma.list_regions(sigma.hq_regions)
+
+        # write summary
+        sigma.write_summary()
+
+        # write verified regions
+        sigma.write_regions(sigma.hq_regions, 'verified', format = ['fasta', 'genbank'])
+    else:
+        log_progress('No candidate regions found.')
+
+
 
 def main():
 
@@ -46,6 +96,7 @@ def main():
     ### Run
     parser.add_argument('-o', '--outdir', help='Output directory', metavar = '<path>', required=True)
     parser.add_argument('-b', '--batches', help='Number of batches to run on input files [%(default)i]', default = 1, metavar = '<num>', type = int)
+    parser.add_argument('-B', '--batches_file', help='File with batches to run on input files. Each batch starts with a "batch_" followed by file query file names one in each line', metavar = '<path>', type = str)
     parser.add_argument('-t', '--threads', help='Number of threads to use for data preparation [%(default)i]', default = 4, metavar = '<num>', type = int)
     parser.add_argument('-v', '--version', help='Show program\'s version and exit.', action='version', version='%(prog)s 0.1')
     parser.add_argument('-l', '--logging', help='Output logging level [%(default)s]. Allowed options: %(choices)s', default = 'INFO', choices = LOGGING, metavar = ' ', type = str)
@@ -53,8 +104,8 @@ def main():
     ### Setup
     parser_setup.add_argument('-r', '--reference', nargs = '+', help='Reference dataset(s)', metavar = '<path>', type = str, action = 'extend', required = True)
     parser_setup.add_argument('-R', '--reference_type', nargs = '+', choices = REFERENCE_TYPES, help='Reference dataset type(s). Allowed types: %(choices)s', metavar = '<type>', type = str, action = 'extend', required = True)
-    parser_setup.add_argument('-q', '--query', nargs = '+', help='Query dataset(s)', metavar = '<path>', type = str, action = 'extend', required = True)
-    parser_setup.add_argument('-Q', '--query_type', nargs = '+', choices = QUERY_TYPES, help='Query dataset type(s). Allowed types: %(choices)s', metavar = '<type>', type = str, action = 'extend', required = True)
+    parser_setup.add_argument('-q', '--query', nargs = '+', help='Query dataset(s)', metavar = '<path>', type = str, action = 'extend')
+    parser_setup.add_argument('-Q', '--query_type', nargs = '+', choices = QUERY_TYPES, help='Query dataset type(s). Allowed types: %(choices)s', metavar = '<type>', type = str, action = 'extend', default = ['genbank'])
 
     ### Search
     parser_search.add_argument('--reuse', help='Reuse existing search results', action = 'store_true')
@@ -109,70 +160,102 @@ def main():
     log_progress(f"Output directory: {args.outdir}", loglevel = "INFO")
     log_progress(f"# of threads: {args.threads}", loglevel = "INFO")
 
-    # check if reference and query datasets are the same length
+    # check input
+    if not args.query and not args.batches_file:
+        log_progress(f"You must provide at least one query dataset with either --query or --batches_file", loglevel = "ERROR")
+        exit(1)
+
+    # batches of query datasets
+    if (args.batches > 1) or (args.batches_file):
+        if args.batches > 1:
+            log_progress(f"Splitting query datasets based on input order", loglevel = "INFO")
+            args.query_batches = make_batches(args.query, args.batches)
+        elif args.batches_file:
+            log_progress("Reading batches", loglevel = "INFO")
+            args.query, args.query_batches = read_batch_file(args.batches_file)
+            args.batches = len(args.query_batches)
+        log_progress(f"# of query batches: {args.batches}", loglevel = "INFO")
+        
+    # check reference input
     if len(args.reference) != len(args.reference_type):
         if len(args.reference_type) == 1:
             args.reference_type = args.reference_type * len(args.reference)
 
+    # check query input
     if len(args.query) != len(args.query_type):
         if len(args.query_type) == 1:
             args.query_type = args.query_type * len(args.query)
     
     log_progress(f"# of reference datasets: {len(args.reference)}", loglevel = "INFO")
     log_progress(f"# of query datasets: {len(args.query)}", loglevel = "INFO")
-    
+        
     # check if all files exist and are not empty
     log_progress("Checking input query files", loglevel = "INFO")
     for infile in args.query:
         if not os.path.exists(infile):
-            log_progress(f"Input file {infile} does not exist", loglevel = "ERROR")
+            log_progress(f"Input file {infile} does not exist. Quiting.", loglevel = "ERROR")
             sys.exit(1)
         if os.path.getsize(infile) == 0:
-            log_progress(f"Input file {infile} is empty", loglevel = "ERROR")
+            log_progress(f"Input file {infile} is empty. Quiting.", loglevel = "ERROR")
             sys.exit(1)
+    
+    # run analyses
+    if args.batches > 1:
+        log_progress("Running in batch mode.", loglevel = "INFO")
 
-    # declare SigMa object
-    sigma = SigMa(args)
+        bi = 0
+        args.main_outdir = args.outdir
+        args.main_query = args.query
+        args.batch_refs = args.reference
+        args.batch_ref_types = args.reference_type
+        args.prepdb = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts', 'prepdb.py')
 
-    # add reference datasets
-    sigma.prepare_targets()
+        for batch, batch_query in args.query_batches.items():
+            bi += 1
+            log_progress(f">>> Batch [{bi}/{args.batches}]: {batch}", loglevel = "INFO")
+            # update output directory
+            args.outdir = os.path.join(args.main_outdir, batch)
+            log_progress(f"Output directory: {args.outdir}", loglevel = "DEBUG")
+            # update query datasets
+            args.query = batch_query
+            # run sigma
+            run_sigma(args)
+            # write batch status
+            verified, candidates = post_batch(args.main_outdir, args.outdir, batch, bi)
+            verified_gbs = os.path.join(args.main_outdir, f"all_verified.gb")
+            verified_nt = os.path.join(args.main_outdir, f"all_verified.nt.fasta")
+            verified_aa = os.path.join(args.main_outdir, f"all_verified.aa.fasta") 
+            verified_db = os.path.join(args.main_outdir, f"batch_dbs")
+            verified_nt_derep = os.path.join(verified_db, f"all_verified.nt.fasta")
+            verified_aa_derep = os.path.join(verified_db, f"all_verified.aa.fasta")
+            verified_checkv_db = os.path.join(verified_db, f"checkv_db")
 
-    # analyze query datasets one by one
-    sigma.handle_queries()
+            log_progress(f">>> Batch [{bi}/{args.batches}]: {candidates} candidates and {verified} verified regions", loglevel = "INFO")
 
-    # filter merged regions
-    candidate_regions = sigma.filter_regions(sig_group = 'merged')
-    if len(candidate_regions) > 0:
-        # list candidate regions
-        log_progress(f"Selected {len(candidate_regions)} unique candidate regions", msglevel = 0, loglevel = "INFO")
-
-        # write cadidate regions
-        sigma.write_regions(candidate_regions, 'candidate')
-
-        # write Artemis plot files
-        if args.artemis_plots: sigma.write_artemis_plots()
-
-        if args.skip_checkv:
-            log_progress('CheckV validation skipped.', msglevel = 0, loglevel = "INFO")
-            sys.exit(0)
-
-        # run CheckV
-        sigma.run_checkv()
-
-        # filter only high-quality regions
-        sigma.filter_hq_regions()
-
-        # list high-quality regions
-        log_progress(f"Selected {len(sigma.hq_regions)} high-quality regions", msglevel = 0, loglevel = "INFO")
-        sigma.list_regions(sigma.hq_regions)
-
-        # write summary
-        sigma.write_summary()
-
-        # write verified regions
-        sigma.write_regions(sigma.hq_regions, 'verified', format = ['fasta', 'genbank'])
+            if verified > 0:
+                log_progress(f"Using verified regions as new references", loglevel = "INFO")
+                # call prepdb
+                cmd = f"python {args.prepdb} --gb {verified_gbs} --dbdir {verified_db} --threads {args.threads} --tmp {os.path.join(verified_db, 'tmp')} --logging {args.logging} --simple_log"
+                call_process(cmd, "prepdb")
+                
+                # update checkv database
+                checkv_env = '' if not args.checkv_env else f"conda run -n {args.checkv_env}"
+                cmd = f"{checkv_env} checkv update_database {args.checkv_db} {verified_checkv_db} {verified_nt_derep} --threads {args.threads} --quiet --restart"
+                call_process(cmd, program="checkv")
+                
+                # update reference databases
+                if args.reference[-1] != verified_nt:
+                    # nt
+                    args.reference.append(verified_nt_derep)
+                    args.reference_type.append('fasta_nt')
+                    # aa
+                    args.reference.append(verified_aa_derep)
+                    args.reference_type.append('fasta_aa')
+                    # checkv
+                    args.checkv_db = verified_checkv_db
+            
     else:
-        log_progress('No candidate regions found.')
+        run_sigma(args)
 
 def run():
     """Run SigMa analysis."""
