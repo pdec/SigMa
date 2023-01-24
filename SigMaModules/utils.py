@@ -153,9 +153,10 @@ def make_batches(items : List, batches : int) -> Dict[str, List[str]]:
     batch_size = int(len(items) / batches)
     if batch_size * batches < len(items):
         batch_size += 1
-    for i in range(1, len(items), 1):
-        batch_name = f"batch_{i:05d}"
-        batch_dict[batch_name] = items[i:i + batch_size * i]
+    log_progress(f"Batch size: {batch_size}", msglevel = 1, loglevel = "INFO")
+    for bi, si in enumerate(range(0, len(items), batch_size), 1):
+        batch_name = f"batch_{bi:04d}"
+        batch_dict[batch_name] = items[si:si + batch_size]
     
     for batch, files in batch_dict.items():
         log_progress(f"Batch {batch} contains {len(files)} files", msglevel = 1, loglevel = "INFO")
