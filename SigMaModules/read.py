@@ -5,6 +5,9 @@ A module to read various files
 import binascii
 import sys
 import gzip
+import warnings
+from Bio import BiopythonWarning
+warnings.simplefilter('ignore', BiopythonWarning)
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from typing import List, Dict
