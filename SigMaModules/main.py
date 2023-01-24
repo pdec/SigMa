@@ -2,7 +2,7 @@
 import sys
 import os
 import argparse
-import subprocess
+import glob
 from typing import List
 
 from .models import SigMa
@@ -104,6 +104,7 @@ def main():
     ### Setup
     parser_setup.add_argument('-r', '--reference', nargs = '+', help='Reference dataset(s)', metavar = '<path>', type = str, action = 'extend', required = True)
     parser_setup.add_argument('-R', '--reference_type', nargs = '+', choices = REFERENCE_TYPES, help='Reference dataset type(s). Allowed types: %(choices)s', metavar = '<type>', type = str, action = 'extend', required = True)
+    parser_setup.add_argument('-i', '--indir', help='Input directory with query datasets', metavar = '<path>', type = str)
     parser_setup.add_argument('-q', '--query', nargs = '+', help='Query dataset(s)', metavar = '<path>', type = str, action = 'extend')
     parser_setup.add_argument('-Q', '--query_type', nargs = '+', choices = QUERY_TYPES, help='Query dataset type(s). Allowed types: %(choices)s', metavar = '<type>', type = str, action = 'extend', default = ['genbank'])
 
@@ -158,12 +159,25 @@ def main():
     log_progress(f"Starting SigMa v.{__version__} analysis", loglevel = "INFO")
     log_progress(f"Command: " + ' '.join(sys.argv), loglevel = "INFO")
     log_progress(f"Output directory: {args.outdir}", loglevel = "INFO")
+    if args.indir: log_progress(f"Input directory: {args.indir}", loglevel = "INFO")
     log_progress(f"# of threads: {args.threads}", loglevel = "INFO")
 
     # check input
-    if not args.query and not args.batches_file:
-        log_progress(f"You must provide at least one query dataset with either --query or --batches_file", loglevel = "ERROR")
+    if not args.query and not args.batches_file and not args.indir:
+        log_progress(f"You must provide at least one query dataset with either --query, --batches_file or --indir", loglevel = "ERROR")
         exit(1)
+    elif args.query and args.batches_file:
+        log_progress(f"You must provide either --query or --batches_file, not both", loglevel = "ERROR")
+        exit(1)
+    elif args.query and args.indir:
+        log_progress(f"You must provide either --query or --indir, not both", loglevel = "ERROR")
+        exit(1)
+    elif args.batches_file and args.indir:
+        log_progress(f"You must provide either --batches_file or --indir, not both", loglevel = "ERROR")
+        exit(1)
+    elif args.indir:
+        args.query = glob.glob(os.path.join(args.indir, '*'))
+        log_progress(f"Found {len(args.query)} query datasets in {args.indir}", loglevel = "DEBUG")
 
     # batches of query datasets
     if (args.batches > 1) or (args.batches_file):
@@ -175,7 +189,7 @@ def main():
             args.query, args.query_batches = read_batch_file(args.batches_file)
             args.batches = len(args.query_batches)
         log_progress(f"# of query batches: {args.batches}", loglevel = "INFO")
-        
+      
     # check reference input
     if len(args.reference) != len(args.reference_type):
         if len(args.reference_type) == 1:
