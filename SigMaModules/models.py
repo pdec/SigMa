@@ -75,7 +75,7 @@ class SigMa():
         rm_num = 0 # regions merged
         qi = 0
         for query_type, query_dataset_path in zip(self.args.query_type, self.args.query):
-            # READ QUERY
+            # PARSE QUERY
             qi += 1
             done_q = f"{qi}/{q_num}"
             log_progress(f"[{done_q}] Query: {query_dataset_path}", msglevel = 0, loglevel = "INFO")
@@ -87,9 +87,20 @@ class SigMa():
                     )
                 )
 
-            # SEARCH QUERY AGAINST TARGETS
+            # PARSE QUERY RECORDS
             rqi = 0
             rq_num = len(self.queries[-1].get_record_queries())
+            
+            # prepare query files
+            query_nt_path = os.path.join(self.dirs['query'], f'q{qi}_nt.fasta')
+            query_aa_path = os.path.join(self.dirs['query'], f'q{qi}_aa.fasta')
+            output_prefix = os.path.join(self.dirs['search'], f'q{qi}')
+
+            # combine sequnces from a single Query
+            query_nts = []
+            query_aas = []
+
+            # combine sequnces from a single Query
             for record_query in self.queries[-1].get_record_queries():
                 rqi += 1
                 # just link RecordQueries to SigMa
@@ -97,64 +108,72 @@ class SigMa():
                 # counter for progress
                 done_rq = f"{rqi}/{rq_num}"
                 if not record_query.has_nt() and not record_query.has_aa():
-                    log_progress(f"[{done_q} - {done_rq}] Searching {record_query} skipped - no sequences", msglevel = 1, loglevel = "DEBUG")
+                    log_progress(f"[{done_q} - {done_rq}] {record_query} skipped - no sequences", msglevel = 1, loglevel = "DEBUG")
                     continue
                 elif record_query.len() < self.args.min_nt_sig:
-                    log_progress(f"[{done_q} - {done_rq}] Searching {record_query} skipped - too short)", msglevel = 1, loglevel = "DEBUG")
+                    log_progress(f"[{done_q} - {done_rq}] {record_query} skipped - too short)", msglevel = 1, loglevel = "DEBUG")
                     continue
                 else:
-                    log_progress(f"[{done_q} - {done_rq}] Searching {record_query}", msglevel = 1, loglevel = "DEBUG")
+                    log_progress(f"[{done_q} - {done_rq}] {record_query}", msglevel = 1, loglevel = "DEBUG")
 
-                # prepare query files
-                query_nt_path = os.path.join(self.dirs['query'], f'q{qi}_r{rqi}_nt.fasta')
-                query_aa_path = os.path.join(self.dirs['query'], f'q{qi}_r{rqi}_aa.fasta')
-                output_prefix = os.path.join(self.dirs['search'], f'q{qi}_r{rqi}')
-                
                 # write query files
                 if record_query.has_nt():
-                    self.write_fastas(record_query.get_fasta_nt(), query_nt_path)
+                    query_nts.extend(record_query.get_fasta_nt())
                 else:
-                    log_progress(f"Query {record_query} has no nucleotide sequences. Not writing.", msglevel = 2, loglevel = "WARNING")
+                    log_progress(f"[{done_q} - {done_rq}] {record_query} has no nucleotide sequences", msglevel = 2, loglevel = "WARNING")
                 if record_query.has_aa():
-                    self.write_fastas(record_query.get_fasta_aa(), query_aa_path)
+                    query_aas.extend(record_query.get_fasta_aa())
                 else:
-                    log_progress(f"Query {record_query} has no proteins. Not writing.", msglevel = 2, loglevel = "WARNING")
+                    log_progress(f"[{done_q} - {done_rq}] {record_query} has no proteins", msglevel = 2, loglevel = "WARNING")
+            
+            # write query files
+            if len(query_nts) > 0:
+                self.write_fastas(query_nts, query_nt_path)
+            else:
+                log_progress(f"0 nucleotide sequences in {self.queries[-1]}. Not writing.", msglevel = 2, loglevel = "WARNING")
+            if len(query_aas) > 0:
+                self.write_fastas(query_aas, query_aa_path)
+            else:
+                log_progress(f"0 proteins in {self.queries[-1]}. Not writing.", msglevel = 2, loglevel = "WARNING")
+            
+            # Search combined sequenced against Targets
+            for target in sorted(self.targets, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]):
+                # search query against target
+                output_path = ''
+                if target.type == 'fasta_nt':
+                    if record_query.has_nt():
+                        output_path = target.search(query_nt_path, output_prefix)
+                else:
+                    if record_query.has_aa():
+                        output_path = target.search(query_aa_path, output_prefix)
 
-                for target in sorted(self.targets, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]):
-                    # search query against target
-                    output_path = ''
-                    if target.type == 'fasta_nt':
-                        if record_query.has_nt():
-                            output_path = target.search(query_nt_path, output_prefix)
-                    else:
-                        if record_query.has_aa():
-                            output_path = target.search(query_aa_path, output_prefix)
+                # add signal only if output file exists and is not empty
+                if not output_path or (not os.path.exists(output_path) and os.path.getsize(output_path) > 0):
+                    continue
 
-                    # add signal only if output file exists and is not empty
-                    if not output_path or (not os.path.exists(output_path) and os.path.getsize(output_path) > 0):
-                        continue
-
-                    # parse search results
-                    nt_signal_array, aa_signal_array = target.read_output(record_query, output_path)
+                # parse search results
+                nt_signal_array, aa_signal_array = target.read_output(record_query, output_path) # returns a dict of arrays per record_id
+                for record_query in self.queries[-1].get_record_queries():
+                    rqid = record_query.get_id()
                     signal_group = 'nt_based'
-                    if nt_signal_array is not None:
-                        record_query.add_signal(signal_group, target.name, nt_signal_array)
-                    if aa_signal_array is not None and target.type != 'fasta_nt':
+                    if rqid in nt_signal_array and nt_signal_array[rqid] is not None:
+                        record_query.add_signal(signal_group, target.name, nt_signal_array[rqid])
+                    if rqid in aa_signal_array and aa_signal_array[rqid] is not None and target.type != 'fasta_nt':
                         signal_group = 'aa_based'
-                        record_query.add_signal(signal_group, target.name, aa_signal_array)
-                
-                # combine signals
-                if self.args.combine: record_query.combine_signals()
+                        record_query.add_signal(signal_group, target.name, aa_signal_array[rqid])
+            
+            # combine signals
+            if self.args.combine: record_query.combine_signals()
 
-                # print signal summary
-                record_query.print_signal_summary()
+            # print signal summary
+            record_query.print_signal_summary()
 
-                # EVALUATE SIGNALS
-                log_progress(f"[{done_q} - {done_rq}] Evaluating {record_query}", msglevel = 1, loglevel = "DEBUG")
-                record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
-                record_query.merge_regions()
-                for regions in record_query.get_regions().values():
-                    self.regions.extend(regions)
+            # EVALUATE SIGNALS
+            log_progress(f"[{done_q} - {done_rq}] Evaluating {record_query}", msglevel = 1, loglevel = "DEBUG")
+            record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
+            record_query.merge_regions()
+            for regions in record_query.get_regions().values():
+                self.regions.extend(regions)
 
 
             log_progress(f" {len(self.filter_regions(sig_group = 'merged')) - rm_num} unique regions ({len(self.regions) - r_num} in total) were identified", msglevel = 1, loglevel = "INFO")
@@ -554,17 +573,17 @@ class Target(Input):
 
         return output_path
 
-    def read_output(self, record_query, output_path : str) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+    def read_output(self, record_query, output_path : str) -> Tuple[Dict[str, Dict[str, np.ndarray]], Dict[str, Dict[str, np.ndarray]]]:
         """
         Read diamond output and return information about regions with signal
         :param file_path: path to diamond output file
         :param record_query: RecordQuery object
         :return: dictionary with information about regions with signal
-        :return: two dictionaries for nucleotide-based signal and proteins with list of similar reference proteins
+        :return: a touple with two dictionaries of dictionaries for RecordQuery and their nucleotide-based signal and proteins with list of similar reference proteins
         """
 
-        nt_signal_array = None
-        aa_signal_array = None
+        nt_signal_array = {}
+        aa_signal_array = {}
 
         # don't read output if it doesn't exist or is empty
         if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
@@ -576,16 +595,16 @@ class Target(Input):
                     continue
                 else:
                     qaccver, saccver, pident, length, qstart, qend, evalue = line.strip().split('\t')
+                    record_id, qlength = qaccver.split("|")
                     signal = 1 # TODO: add option to use pident or evalue as signal
 
-                    if nt_signal_array is None:
-                        record_id, qlength = qaccver.split("|")
+                    if record_id not in nt_signal_array:
                         qlength = int(qlength)
-                        nt_signal_array = np.zeros(int(qlength))
+                        nt_signal_array[record_id] = np.zeros(int(qlength))
 
                     # record nt signal
                     if int(length) >= self.params.nt_length:
-                        nt_signal_array[int(qstart) - 1 : int(qend)] += signal
+                        nt_signal_array[record_id][int(qstart) - 1 : int(qend)] += signal
 
         elif self.type == 'fasta_aa':
             for line in open(output_path, 'r'):
@@ -598,14 +617,14 @@ class Target(Input):
                     start, end, strand = map(int, protein_coords.split('..'))
 
                     # record nt equivalent aa signal
-                    if nt_signal_array is None:
-                        nt_signal_array = np.zeros(record_query.len())
-                        aa_signal_array = np.zeros(record_query.get_cdss_num())
+                    if record_id not in nt_signal_array:
+                        nt_signal_array[record_id] = np.zeros(record_query.len())
+                        aa_signal_array[record_id] = np.zeros(record_query.get_cdss_num())
 
                     # record nt signal
-                    nt_signal_array[int(start) - 1 : int(end)] += signal
+                    nt_signal_array[record_id][int(start) - 1 : int(end)] += signal
                     # record aa signal
-                    aa_signal_array[record_query.get_cds_order_num(protein_id)] += signal
+                    aa_signal_array[record_id][record_query.get_cds_order_num(protein_id)] += signal
 
         elif self.type == 'mmseqs_db':
             for line in open(output_path, 'r'):
@@ -618,14 +637,14 @@ class Target(Input):
                     start, end, strand = map(int, protein_coords.split('..'))
 
                     # record nt equivalent aa signal
-                    if nt_signal_array is None:
-                        nt_signal_array = np.zeros(record_query.len())
-                        aa_signal_array = np.zeros(record_query.get_cdss_num())
+                    if record_id not in nt_signal_array:
+                        nt_signal_array[record_id] = np.zeros(record_query.len())
+                        aa_signal_array[record_id] = np.zeros(record_query.get_cdss_num())
 
                     # record nt signal
-                    nt_signal_array[int(start) - 1 : int(end)] += signal
+                    nt_signal_array[record_id][int(start) - 1 : int(end)] += signal
                     # record aa signal
-                    aa_signal_array[record_query.get_cds_order_num(protein_id)] += signal
+                    aa_signal_array[record_id][record_query.get_cds_order_num(protein_id)] += signal
                 
         return nt_signal_array, aa_signal_array
 
@@ -780,6 +799,14 @@ class Record():
         return len(self.get_cdss()) > 0
 
     ### get methods ###
+    def get_id(self) -> str:
+        """
+        Returns record id
+        :return: str
+        """
+
+        return self.record.id
+
     def get_record(self) -> SeqRecord:
         """
         Returns a SeqRecord object
