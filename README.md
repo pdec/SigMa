@@ -27,14 +27,18 @@ cd SigMa
 # use conda or mamba to create env
 conda env create --file sigma_env.yml
 
-# Install MaShClust
+# Install MeShClust
+# go to location you want to install MeShClust
 git clone git@github.com:BioinformaticsToolsmith/Identity.git
 cd Identity
 mkdir bin
 cd bin
 cmake ..
 make
-cp identity meshclust libmain.so libclustering.so <path in your system PATH variable>
+# either add current directory to PATH 
+PATH=`pwd`"/${PATH:+:${PATH}}"; export PATH;
+# or make symbolic link to meshclust into directory from you PATH
+ln -s `pwd` <directory_in_your_PATH>
 
 # configure CheckV
 conda activate sigma
