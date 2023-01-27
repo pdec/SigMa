@@ -36,7 +36,7 @@ class SigMa():
         for dir_name in directories:
             if dir_name == 'artemis_plots' and not args.artemis_plots:
                 continue
-            elif dir_name == 'phispy' and ('phispy' not in args.ext_tools):
+            elif dir_name == 'phispy' and args.ext_tools and ('phispy' not in args.ext_tools):
                 continue
             dir_path = os.path.join(self.args.outdir, dir_name)
             self.dirs[dir_name] = dir_path
@@ -165,7 +165,7 @@ class SigMa():
                         record_query.add_signal(signal_group, target.name, aa_signal_array[rqid])
             
             # search against specific tools
-            if 'phispy' in self.args.ext_tools:
+            if self.args.ext_tools and 'phispy' in self.args.ext_tools:
                 nt_signal_array = self.run_phispy(self.queries[-1], qi)
                 for record_query in self.queries[-1].get_record_queries():
                     rqid = record_query.get_id()
@@ -194,106 +194,106 @@ class SigMa():
             r_num = len(self.regions)
 
     # not used - as of now
-    def prepare_queries(self):
-        log_progress("Preparing queries", msglevel = 0, loglevel = "INFO")
-        for query_type, query_dataset_path in zip(self.args.query_type, self.args.query):
-            self.queries.append(
-                # create Query object
-                Query(
-                    file_path = query_dataset_path,
-                    type = query_type
-                    )
-                )
-            # link RecordQueries
-            self.record_queries.extend(self.queries[-1].get_record_queries())
+    # def prepare_queries(self):
+    #     log_progress("Preparing queries", msglevel = 0, loglevel = "INFO")
+    #     for query_type, query_dataset_path in zip(self.args.query_type, self.args.query):
+    #         self.queries.append(
+    #             # create Query object
+    #             Query(
+    #                 file_path = query_dataset_path,
+    #                 type = query_type
+    #                 )
+    #             )
+    #         # link RecordQueries
+    #         self.record_queries.extend(self.queries[-1].get_record_queries())
 
     # not used - as of now
-    def search_queries(self) -> None:
-        """
-        Search queries against references
-        :return: None
-        """
-        log_progress("Searching queries", msglevel = 0, loglevel = "INFO")
+    # def search_queries(self) -> None:
+    #     """
+    #     Search queries against references
+    #     :return: None
+    #     """
+    #     log_progress("Searching queries", msglevel = 0, loglevel = "INFO")
 
-        # search queries against reference databases
-        q_num = len(self.queries)
-        for qi, query in enumerate(self.queries, 1):
-            recq_num = len(query.get_record_queries())
-            if recq_num == 0:
-                log_progress(f"Query {record_query} has no records. Skipping.", msglevel = 1, loglevel = "WARNING")
-                continue
+    #     # search queries against reference databases
+    #     q_num = len(self.queries)
+    #     for qi, query in enumerate(self.queries, 1):
+    #         recq_num = len(query.get_record_queries())
+    #         if recq_num == 0:
+    #             log_progress(f"Query {record_query} has no records. Skipping.", msglevel = 1, loglevel = "WARNING")
+    #             continue
             
-            for rqi, record_query in enumerate(query.get_record_queries(), 1):
-                # sanity checks to avoid unnecessary searches
-                done = f"{qi}/{q_num} - {rqi}/{recq_num}"
-                if not record_query.has_nt() and not record_query.has_aa():
-                    log_progress(f"[{done}] Searching {record_query} skipped - no sequences", msglevel = 0, loglevel = "DEBUG")
-                    continue
-                elif record_query.len() < self.args.min_nt_sig:
-                    log_progress(f"[{done}] Searching {record_query} skipped - too short)", msglevel = 0, loglevel = "DEBUG")
-                    continue
-                else:
-                    log_progress(f"[{done}] Searching {record_query}", msglevel = 0, loglevel = "INFO")
+    #         for rqi, record_query in enumerate(query.get_record_queries(), 1):
+    #             # sanity checks to avoid unnecessary searches
+    #             done = f"{qi}/{q_num} - {rqi}/{recq_num}"
+    #             if not record_query.has_nt() and not record_query.has_aa():
+    #                 log_progress(f"[{done}] Searching {record_query} skipped - no sequences", msglevel = 0, loglevel = "DEBUG")
+    #                 continue
+    #             elif record_query.len() < self.args.min_nt_sig:
+    #                 log_progress(f"[{done}] Searching {record_query} skipped - too short)", msglevel = 0, loglevel = "DEBUG")
+    #                 continue
+    #             else:
+    #                 log_progress(f"[{done}] Searching {record_query}", msglevel = 0, loglevel = "INFO")
 
-                # prepare query files
-                query_nt_path = os.path.join(self.dirs['query'], f'q{qi}_r{rqi}_nt.fasta')
-                query_aa_path = os.path.join(self.dirs['query'], f'q{qi}_r{rqi}_aa.fasta')
-                output_prefix = os.path.join(self.dirs['search'], f'q{qi}_r{rqi}')
+    #             # prepare query files
+    #             query_nt_path = os.path.join(self.dirs['query'], f'q{qi}_r{rqi}_nt.fasta')
+    #             query_aa_path = os.path.join(self.dirs['query'], f'q{qi}_r{rqi}_aa.fasta')
+    #             output_prefix = os.path.join(self.dirs['search'], f'q{qi}_r{rqi}')
                 
-                # write query files
-                if record_query.has_nt():
-                    self.write_fastas(record_query.get_fasta_nt(), query_nt_path)
-                else:
-                    log_progress(f"Query {record_query} has no nucleotide sequences. Not writing.", msglevel = 1, loglevel = "WARNING")
-                if record_query.has_aa():
-                    self.write_fastas(record_query.get_fasta_aa(), query_aa_path)
-                else:
-                    log_progress(f"Query {record_query} has no proteins. Not writing.", msglevel = 1, loglevel = "WARNING")
+    #             # write query files
+    #             if record_query.has_nt():
+    #                 self.write_fastas(record_query.get_fasta_nt(), query_nt_path)
+    #             else:
+    #                 log_progress(f"Query {record_query} has no nucleotide sequences. Not writing.", msglevel = 1, loglevel = "WARNING")
+    #             if record_query.has_aa():
+    #                 self.write_fastas(record_query.get_fasta_aa(), query_aa_path)
+    #             else:
+    #                 log_progress(f"Query {record_query} has no proteins. Not writing.", msglevel = 1, loglevel = "WARNING")
 
-                # search query against targets
-                for target in sorted(self.targets, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]):
-                    output_path = ''
-                    if target.type == 'fasta_nt':
-                        if record_query.has_nt():
-                            output_path = target.search(query_nt_path, output_prefix)
-                    else:
-                        if record_query.has_aa():
-                            output_path = target.search(query_aa_path, output_prefix)
+    #             # search query against targets
+    #             for target in sorted(self.targets, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]):
+    #                 output_path = ''
+    #                 if target.type == 'fasta_nt':
+    #                     if record_query.has_nt():
+    #                         output_path = target.search(query_nt_path, output_prefix)
+    #                 else:
+    #                     if record_query.has_aa():
+    #                         output_path = target.search(query_aa_path, output_prefix)
 
-                    # add signal only if output file exists and is not empty
-                    if not output_path or (not os.path.exists(output_path) and os.path.getsize(output_path) > 0):
-                        continue
+    #                 # add signal only if output file exists and is not empty
+    #                 if not output_path or (not os.path.exists(output_path) and os.path.getsize(output_path) > 0):
+    #                     continue
 
-                    # parse search results
-                    nt_signal_array, aa_signal_array = target.read_output(record_query, output_path)
-                    signal_group = 'nt_based'
-                    if nt_signal_array is not None:
-                        record_query.add_signal(signal_group, target.name, nt_signal_array)
-                    if aa_signal_array is not None and target.type != 'fasta_nt':
-                        signal_group = 'aa_based'
-                        record_query.add_signal(signal_group, target.name, aa_signal_array)
+    #                 # parse search results
+    #                 nt_signal_array, aa_signal_array = target.read_output(record_query, output_path)
+    #                 signal_group = 'nt_based'
+    #                 if nt_signal_array is not None:
+    #                     record_query.add_signal(signal_group, target.name, nt_signal_array)
+    #                 if aa_signal_array is not None and target.type != 'fasta_nt':
+    #                     signal_group = 'aa_based'
+    #                     record_query.add_signal(signal_group, target.name, aa_signal_array)
                 
-                # combine signals
-                if self.args.combine: record_query.combine_signals()
+    #             # combine signals
+    #             if self.args.combine: record_query.combine_signals()
 
-                # print signal summary
-                record_query.print_signal_summary()
+    #             # print signal summary
+    #             record_query.print_signal_summary()
 
-    # not used - as of now
-    def evaluate_signals(self) -> None:
-        """
-        Evaluate signals
-        :return: None
-        """
-        log_progress("Evaluating signals", msglevel = 0, loglevel = "INFO")
-        for rqi, record_query in enumerate(self.record_queries, 1):
-            log_progress(f"[{rqi}/{len(self.record_queries)}] Evaluating {record_query}", msglevel = 1, loglevel = "DEBUG")
-            record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
-            record_query.merge_regions()
-            for regions in record_query.get_regions().values():
-                self.regions.extend(regions)
+    # # not used - as of now
+    # def evaluate_signals(self) -> None:
+    #     """
+    #     Evaluate signals
+    #     :return: None
+    #     """
+    #     log_progress("Evaluating signals", msglevel = 0, loglevel = "INFO")
+    #     for rqi, record_query in enumerate(self.record_queries, 1):
+    #         log_progress(f"[{rqi}/{len(self.record_queries)}] Evaluating {record_query}", msglevel = 1, loglevel = "DEBUG")
+    #         record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
+    #         record_query.merge_regions()
+    #         for regions in record_query.get_regions().values():
+    #             self.regions.extend(regions)
 
-        log_progress(f"In total {len(self.regions)} regions were identified", msglevel = 0, loglevel = "INFO")
+    #     log_progress(f"In total {len(self.regions)} regions were identified", msglevel = 0, loglevel = "INFO")
 
     def filter_regions(self, sig_group : Union[str, List[str]] = None, sig_sources : Union[str, List[str]] = None, status : Union[str, List[str]] = None) -> List:
         """
@@ -585,7 +585,7 @@ class Target(Input):
         output_path = self.output_paths[-1]
 
         if self.params.reuse and os.path.exists(output_path):
-            log_progress(f"reusing {output_path}", msglevel=1, loglevel="INFO")
+            log_progress(f"reusing {output_path}", msglevel=1, loglevel="DEBUG")
             return output_path
         else:
             log_progress(f"searching against {self.name}", msglevel = 1, loglevel = "DEBUG")
@@ -638,7 +638,9 @@ class Target(Input):
         aa_signal_array = {}
 
         # don't read output if it doesn't exist or is empty
-        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+        if not os.path.exists(output_path):
+            return nt_signal_array, aa_signal_array
+        elif os.path.getsize(output_path) == 0:
             return nt_signal_array, aa_signal_array
 
         if self.type == 'fasta_nt':

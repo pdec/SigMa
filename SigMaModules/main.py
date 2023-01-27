@@ -259,6 +259,7 @@ def main():
 
             log_progress(f">>> Batch [{bi}/{args.batches}]: {candidates} candidates and {verified} verified regions", loglevel = "INFO")
 
+            # whenever there are verified regions, update the reference databases
             if verified > 0:
                 log_progress(f"Using verified regions as new references", loglevel = "INFO")
                 # call prepdb
@@ -271,7 +272,7 @@ def main():
                 call_process(cmd, program="checkv")
                 
                 # update reference databases
-                if args.reference[-1] != verified_nt_derep:
+                if verified_nt_derep not in args.reference and verified_aa_derep not in args.reference:
                     # nt
                     args.reference.append(verified_nt_derep)
                     args.reference_type.append('fasta_nt')
