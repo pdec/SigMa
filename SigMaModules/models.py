@@ -172,7 +172,7 @@ class SigMa():
                     if rqid in nt_signal_array and nt_signal_array[rqid] is not None:
                         record_query.add_signal('nt_based', 'phispy', nt_signal_array[rqid])
 
-            # combine signals
+            # combine all signals together as a separate category
             if self.args.combine: 
                 for record_query in self.queries[-1].get_record_queries():
                     record_query.combine_signals()
@@ -374,7 +374,7 @@ class SigMa():
         :return: dictionary with phispy results
         """
 
-        log_progress("Running PhiSpy", msglevel = 1, loglevel = "INFO")
+        log_progress("Running PhiSpy", msglevel = 1, loglevel = "DEBUG")
         # prepare output file path
         cmd = f"PhiSpy.py --output_dir {self.dirs['phispy']} --threads {self.args.threads} --output_choice 1 --color {query.get_file_path()} -p {prefix}"
         call_process(cmd, program="phispy")
