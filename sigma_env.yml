@@ -4,9 +4,10 @@ channels:
   - bioconda
 dependencies:
   - diamond=2.0.15
-  - mmseqs=14.7e284
+  - mmseqs2=14.7e284
   - pandas>=1.4.3
   - numpy>=1.22.3
   - biopython>=1.78
   - blast>=2.13.0
   - checkv>=1.0.1
+  - phispy>=4.2.21
