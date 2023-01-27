@@ -163,6 +163,26 @@ def make_batches(items : List, batches : int) -> Dict[str, List[str]]:
 
     return batch_dict
 
+def read_batches_done(main_outdir : str) -> List[str]:
+    """
+    Get a list of batches.
+    :param main_outdir: the main output directory
+    :return: a list of batches
+    """
+
+    status_tsv = os.path.join(main_outdir, 'batch_status.tsv')
+    batches = []
+    if os.path.exists(status_tsv):
+        with open(status_tsv) as inf:
+            inf.readline()
+            for line in inf:
+                if not line.strip(): continue
+                batch = line.strip().split()[1]
+                batches.append(batch)
+    log_progress(f"Found {len(batches)} completed batches", msglevel = 1, loglevel = "INFO")
+
+    return batches
+
 def post_batch(main_outdir : str, outdir : str, batch : str, bi : int) -> Tuple[int, int]:
     """
     Post a batch of files to Artemis.

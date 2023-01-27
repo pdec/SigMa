@@ -7,7 +7,7 @@ from typing import List
 
 from .models import SigMa
 from .read import read_batch_file
-from .utils import call_process, create_logger, log_progress, make_batches, post_batch, CustomHelpFormatter
+from .utils import call_process, create_logger, log_progress, make_batches, post_batch, read_batches_done, CustomHelpFormatter
 from .version import __version__
 
 def run_sigma(args):
@@ -100,6 +100,7 @@ def main():
     parser.add_argument('-t', '--threads', help='Number of threads to use for data preparation [%(default)i]', default = 4, metavar = '<num>', type = int)
     parser.add_argument('-v', '--version', help='Show program\'s version and exit.', action='version', version='%(prog)s 0.1')
     parser.add_argument('-l', '--logging', help='Output logging level [%(default)s]. Allowed options: %(choices)s', default = 'INFO', choices = LOGGING, metavar = ' ', type = str)
+    parser.add_argument('--resume', help='Resume works on the last processed batch. Based on batch_status.tsv entries.', action = 'store_true')
     
     ### Setup
     parser_setup.add_argument('-r', '--reference', nargs = '+', help='Reference dataset(s)', metavar = '<path>', type = str, action = 'extend', required = True)
@@ -220,13 +221,21 @@ def main():
         bi = 0
         args.main_outdir = args.outdir
         args.main_query = args.query
+        args.main_checkv_db = args.checkv_db
         args.batch_refs = args.reference
         args.batch_ref_types = args.reference_type
         args.prepdb = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts', 'prepdb.py')
 
+        # track which batches have been completed
+        args.batches_done = read_batches_done(args.main_outdir)
+
         for batch, batch_query in args.query_batches.items():
             bi += 1
             log_progress(f">>> Batch [{bi}/{args.batches}]: {batch}", loglevel = "INFO")
+            # check if batch has already been completed
+            if (args.resume) and (batch in args.batches_done):
+                log_progress(f"Batch {batch} has already been completed. Skipping.", loglevel = "INFO")
+                continue
             # update output directory
             args.outdir = os.path.join(args.main_outdir, batch)
             log_progress(f"Output directory: {args.outdir}", loglevel = "DEBUG")
@@ -237,8 +246,6 @@ def main():
             # write batch status
             verified, candidates = post_batch(args.main_outdir, args.outdir, batch, bi)
             verified_gbs = os.path.join(args.main_outdir, f"all_verified.gb")
-            verified_nt = os.path.join(args.main_outdir, f"all_verified.nt.fasta")
-            verified_aa = os.path.join(args.main_outdir, f"all_verified.aa.fasta") 
             verified_db = os.path.join(args.main_outdir, f"batch_dbs")
             verified_nt_derep = os.path.join(verified_db, f"all_verified.nt.fasta")
             verified_aa_derep = os.path.join(verified_db, f"all_verified.aa.fasta")
@@ -254,19 +261,22 @@ def main():
                 
                 # update checkv database
                 checkv_env = '' if not args.checkv_env else f"conda run -n {args.checkv_env}"
-                cmd = f"{checkv_env} checkv update_database {args.checkv_db} {verified_checkv_db} {verified_nt_derep} --threads {args.threads} --quiet --restart"
+                cmd = f"{checkv_env} checkv update_database {args.main_checkv_db} {verified_checkv_db} {verified_nt_derep} --threads {args.threads} --quiet --restart"
                 call_process(cmd, program="checkv")
                 
                 # update reference databases
-                if args.reference[-1] != verified_nt:
+                if args.reference[-1] != verified_nt_derep:
                     # nt
                     args.reference.append(verified_nt_derep)
                     args.reference_type.append('fasta_nt')
                     # aa
                     args.reference.append(verified_aa_derep)
                     args.reference_type.append('fasta_aa')
-                    # checkv
+                    # checkv - change the database if updated at least once
                     args.checkv_db = verified_checkv_db
+
+            # update batch status
+            args.batches_done.append(batch)
             
     else:
         run_sigma(args)

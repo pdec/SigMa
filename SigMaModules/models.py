@@ -32,9 +32,11 @@ class SigMa():
         self.dirs = {}
 
         # setup output directories
-        directories = ['reference', 'query', 'search', 'artemis_plots', 'regions', 'checkv']
+        directories = ['reference', 'query', 'search', 'artemis_plots', 'regions', 'checkv', 'phispy']
         for dir_name in directories:
             if dir_name == 'artemis_plots' and not args.artemis_plots:
+                continue
+            elif dir_name == 'phispy' and not args.phispy:
                 continue
             dir_path = os.path.join(self.args.outdir, dir_name)
             self.dirs[dir_name] = dir_path
@@ -141,10 +143,10 @@ class SigMa():
                 # search query against target
                 output_path = ''
                 if target.type == 'fasta_nt':
-                    if record_query.has_nt():
+                    if len(query_nts) > 0:
                         output_path = target.search(query_nt_path, output_prefix)
                 else:
-                    if record_query.has_aa():
+                    if len(query_aas) > 0:
                         output_path = target.search(query_aa_path, output_prefix)
 
                 # add signal only if output file exists and is not empty
@@ -152,7 +154,7 @@ class SigMa():
                     continue
 
                 # parse search results
-                nt_signal_array, aa_signal_array = target.read_output(record_query, output_path) # returns a dict of arrays per record_id
+                nt_signal_array, aa_signal_array = target.read_output(self.queries[-1], output_path) # returns a dict of arrays per record_id
                 for record_query in self.queries[-1].get_record_queries():
                     rqid = record_query.get_id()
                     signal_group = 'nt_based'
@@ -163,17 +165,20 @@ class SigMa():
                         record_query.add_signal(signal_group, target.name, aa_signal_array[rqid])
             
             # combine signals
-            if self.args.combine: record_query.combine_signals()
+            if self.args.combine: 
+                for record_query in self.queries[-1].get_record_queries():
+                    record_query.combine_signals()
 
             # print signal summary
-            record_query.print_signal_summary()
+            for record_query in self.queries[-1].get_record_queries():
+                record_query.print_signal_summary()
 
-            # EVALUATE SIGNALS
-            log_progress(f"[{done_q} - {done_rq}] Evaluating {record_query}", msglevel = 1, loglevel = "DEBUG")
-            record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
-            record_query.merge_regions()
-            for regions in record_query.get_regions().values():
-                self.regions.extend(regions)
+                # EVALUATE SIGNALS
+                log_progress(f"[{done_q} - {done_rq}] Evaluating {record_query}", msglevel = 1, loglevel = "DEBUG")
+                record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
+                record_query.merge_regions()
+                for regions in record_query.get_regions().values():
+                    self.regions.extend(regions)
 
 
             log_progress(f" {len(self.filter_regions(sig_group = 'merged')) - rm_num} unique regions ({len(self.regions) - r_num} in total) were identified", msglevel = 1, loglevel = "INFO")
@@ -202,7 +207,7 @@ class SigMa():
         """
         log_progress("Searching queries", msglevel = 0, loglevel = "INFO")
 
-        # search queries
+        # search queries against reference databases
         q_num = len(self.queries)
         for qi, query in enumerate(self.queries, 1):
             recq_num = len(query.get_record_queries())
@@ -233,9 +238,8 @@ class SigMa():
                 else:
                     log_progress(f"Query {record_query} has no proteins. Not writing.", msglevel = 1, loglevel = "WARNING")
 
-
+                # search query against targets
                 for target in sorted(self.targets, key = lambda x: {'fasta_nt': 0, 'fasta_aa': 1, 'hmm': 2, 'mmseqs_db': 3}[x.type]):
-                    # search query against target
                     output_path = ''
                     if target.type == 'fasta_nt':
                         if record_query.has_nt():
@@ -481,7 +485,14 @@ class Input():
         self.file_path = file_path
         self.type = type
         self.name = name if name else os.path.basename(file_path)
-    
+
+    def get_file_path(self) -> str:
+        """
+        Get file path
+        :return: file path
+        """
+
+        return self.file_path
 class Target(Input):
     """
     Target data class
@@ -573,13 +584,13 @@ class Target(Input):
 
         return output_path
 
-    def read_output(self, record_query, output_path : str) -> Tuple[Dict[str, Dict[str, np.ndarray]], Dict[str, Dict[str, np.ndarray]]]:
+    def read_output(self, query, output_path : str) -> Tuple[Dict[str, Dict[str, np.ndarray]], Dict[str, Dict[str, np.ndarray]]]:
         """
         Read diamond output and return information about regions with signal
         :param file_path: path to diamond output file
-        :param record_query: RecordQuery object
+        :param query: Query object
         :return: dictionary with information about regions with signal
-        :return: a touple with two dictionaries of dictionaries for RecordQuery and their nucleotide-based signal and proteins with list of similar reference proteins
+        :return: a touple with two dictionaries of dictionaries for Query and their nucleotide-based signal and proteins with list of similar reference proteins
         """
 
         nt_signal_array = {}
@@ -618,13 +629,13 @@ class Target(Input):
 
                     # record nt equivalent aa signal
                     if record_id not in nt_signal_array:
-                        nt_signal_array[record_id] = np.zeros(record_query.len())
-                        aa_signal_array[record_id] = np.zeros(record_query.get_cdss_num())
+                        nt_signal_array[record_id] = np.zeros(query.get_record_len(record_id))
+                        aa_signal_array[record_id] = np.zeros(query.get_record_cds_num(record_id))
 
                     # record nt signal
                     nt_signal_array[record_id][int(start) - 1 : int(end)] += signal
                     # record aa signal
-                    aa_signal_array[record_id][record_query.get_cds_order_num(protein_id)] += signal
+                    aa_signal_array[record_id][query.get_record_cds_order_num(record_id, protein_id)] += signal
 
         elif self.type == 'mmseqs_db':
             for line in open(output_path, 'r'):
@@ -638,13 +649,13 @@ class Target(Input):
 
                     # record nt equivalent aa signal
                     if record_id not in nt_signal_array:
-                        nt_signal_array[record_id] = np.zeros(record_query.len())
-                        aa_signal_array[record_id] = np.zeros(record_query.get_cdss_num())
+                        nt_signal_array[record_id] = np.zeros(query.get_record_len(record_id))
+                        aa_signal_array[record_id] = np.zeros(query.get_record_cds_num(record_id))
 
                     # record nt signal
                     nt_signal_array[record_id][int(start) - 1 : int(end)] += signal
                     # record aa signal
-                    aa_signal_array[record_id][record_query.get_cds_order_num(protein_id)] += signal
+                    aa_signal_array[record_id][query.get_record_cds_order_num(record_id, protein_id)] += signal
                 
         return nt_signal_array, aa_signal_array
 
@@ -693,6 +704,16 @@ class Query(Input):
         return record_id in [record.id for record in self.records]
 
     ### get methods ###
+    def get_record(self, record_id : str):
+        """
+        Returns record with record_id.
+        :return: RecordQuery
+        """
+
+        for record in self.records:
+            if record.get_id() == record_id:
+                return record
+
     def get_record_queries(self) -> List:
         """
         Returns query records.
@@ -707,7 +728,7 @@ class Query(Input):
         :return: int
         """
 
-        return len(self.get_record(record_id))
+        return self.get_record(record_id).len()
 
     def get_record_cds_num(self, record_id : str) -> int:
         """
@@ -715,7 +736,7 @@ class Query(Input):
         :return: int
         """
 
-        return len(self.get_record(record_id))
+        return self.get_record(record_id).get_cdss_num()
 
     def get_record_cds_order_num(self, record_id : str, cds_id : str) -> int:
         """
@@ -723,7 +744,7 @@ class Query(Input):
         :return: int
         """
 
-        return self.get_record(record_id).cdss.index(cds_id)
+        return self.get_record(record_id).get_cds_order_num(cds_id)
 
     def get_records_ids(self) -> List[str]:
         """
