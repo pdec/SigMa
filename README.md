@@ -12,9 +12,9 @@ It is meant to allow incorporation of validated (manually or autoamtically) prop
 - [x] - default reference datasets configuration
 - [x] - managing batch iterations
 - [x] - determine SigMa requirements and prepare envs
+- [x] - implement PhiSpy
 
 ### Optional
-- [ ] - implement PhiSpy
 - [ ] - rewrite diamond to MMSEQs for protein searches
 - [ ] - implement HMMER (pVOGs, VOGDB)
 ## Installation

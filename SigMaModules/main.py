@@ -80,6 +80,10 @@ def main():
         'genbank'
     ]
 
+    EXT_TOOLS = [
+        'phispy',
+    ]
+
     SIG_SOURCES = [
         'all',
         'combined',
@@ -126,6 +130,8 @@ def main():
     parser_search.add_argument('--mmseqs_evalue', help='MMseqs2 maximum e-value [%(default)1.0e]', default = 1e-5, metavar = ' ', type = float)
     parser_search.add_argument('--mmseqs_pident', help='MMseqs2 minimum amino acid identity [%(default).2f]', default = 0.7, metavar = ' ', type = float)
     parser_search.add_argument('--mmseqs_cov', help='MMseqs2 minimum amino acid coverage for clustering [%(default).2f]', default = 0.7, metavar = ' ', type = float)
+    # other tools
+    parser_search.add_argument('--ext_tools', help='External prophage identification programs to use. Choices: %(choices)s', choices = EXT_TOOLS, nargs = '+', action = 'extend', metavar = ' ', type = str)
 
     ### Evaluate
     parser_evaluate.add_argument('--combine', help='Combine all signals as a separate category', action='store_true')

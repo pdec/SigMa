@@ -36,7 +36,7 @@ class SigMa():
         for dir_name in directories:
             if dir_name == 'artemis_plots' and not args.artemis_plots:
                 continue
-            elif dir_name == 'phispy' and not args.phispy:
+            elif dir_name == 'phispy' and ('phispy' not in args.ext_tools):
                 continue
             dir_path = os.path.join(self.args.outdir, dir_name)
             self.dirs[dir_name] = dir_path
@@ -164,6 +164,14 @@ class SigMa():
                         signal_group = 'aa_based'
                         record_query.add_signal(signal_group, target.name, aa_signal_array[rqid])
             
+            # search against specific tools
+            if 'phispy' in self.args.ext_tools:
+                nt_signal_array = self.run_phispy(self.queries[-1], qi)
+                for record_query in self.queries[-1].get_record_queries():
+                    rqid = record_query.get_id()
+                    if rqid in nt_signal_array and nt_signal_array[rqid] is not None:
+                        record_query.add_signal('nt_based', 'phispy', nt_signal_array[rqid])
+
             # combine signals
             if self.args.combine: 
                 for record_query in self.queries[-1].get_record_queries():
@@ -211,6 +219,10 @@ class SigMa():
         q_num = len(self.queries)
         for qi, query in enumerate(self.queries, 1):
             recq_num = len(query.get_record_queries())
+            if recq_num == 0:
+                log_progress(f"Query {record_query} has no records. Skipping.", msglevel = 1, loglevel = "WARNING")
+                continue
+            
             for rqi, record_query in enumerate(query.get_record_queries(), 1):
                 # sanity checks to avoid unnecessary searches
                 done = f"{qi}/{q_num} - {rqi}/{recq_num}"
@@ -353,6 +365,35 @@ class SigMa():
         # update checkv information for each region
         for vr in checkv:
             self.get_region(vr['contig_id']).update_checkv(vr)
+
+    def run_phispy(self, query, prefix) -> Dict[str, Dict[str, np.ndarray]]:
+        """
+        Runs PhiSpy to identify prophages in the input genome.
+        :param query: query object
+        :param prefix: prefix for the output file
+        :return: dictionary with phispy results
+        """
+
+        log_progress("Running PhiSpy", msglevel = 1, loglevel = "INFO")
+        # prepare output file path
+        cmd = f"PhiSpy.py --output_dir {self.dirs['phispy']} --threads {self.args.threads} --output_choice 1 --color {query.get_file_path()} -p {prefix}"
+        call_process(cmd, program="phispy")
+
+        log_progress("Processing PhiSpy output data", msglevel = 1, loglevel = "DEBUG")
+        phispy_output = os.path.join(self.dirs['phispy'], f"{prefix}_prophage_coordinates.tsv")
+        if not os.path.exists(phispy_output):
+            log_progress(f"PhiSpy output file {phispy_output} not found!", loglevel="WARNING")
+            return {}
+        else:
+            df = pd.read_csv(phispy_output, sep = '\t', names = ['pp', 'contig', 'start', 'end', 'start_att1', 'start_att2', 'end_att1', 'end_att2', 'start_att', 'end_att', 'comment'], keep_default_na=False)          
+
+            nt_signal_array = {}
+            for record_id in df['contig'].unique():
+                nt_signal_array[record_id] = np.zeros(query.get_record_len(record_id))
+                for i, row in df.loc[df['contig'] == record_id].iterrows():
+                    nt_signal_array[record_id][int(row['start']) - 1 : int(row['end'])] += 1
+        
+        return nt_signal_array
 
     def list_regions(self, regions : List) -> None:
         """
