@@ -119,20 +119,35 @@ def call_process(cmd, program : str = ''):
     log_progress(f"running: {cmd}", msglevel=2, loglevel="DEBUG")
     if not program: program = cmd.split()[0]
     start_time = datetime.datetime.now()
-    with subprocess.Popen(cmd, shell=True, universal_newlines=True, bufsize=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
-        with process.stdout:
-            for line in process.stdout:
-                if not line.strip(): continue
-                log_progress(f"{program}: {line.strip()}", msglevel = 2, loglevel = "DEBUG")
+    try:        
+        with subprocess.Popen(
+            cmd,
+            shell=True, 
+            universal_newlines=True, 
+            bufsize=1, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.STDOUT
+        ) as process:
+            
+            with process.stdout:
+                for line in process.stdout:
+                    if not line.strip(): continue
+                    log_progress(f"{program}: {line.strip()}", msglevel = 2, loglevel = "DEBUG")            
+
+    except (OSError, subprocess.CalledProcessError) as exception:
         with process.stderr:
             for line in process.stderr:
                 if not line.strip(): continue
                 log_progress(f"{program}: {line.strip()}", msglevel = 2, loglevel = "ERROR")
-                sys.exit(1)
-
+        log_progress(f"{program}: Exception occured: {exception}", msglevel = 2, loglevel = "ERROR")
+        exit(1)
+    else:
+        # no exception was raised
+        pass
+            
     end_time = datetime.datetime.now()
     time_taken = end_time - start_time
-    log_progress(f"time taken: {time_taken}", msglevel=2, loglevel='DEBUG')
+    log_progress(f"{program}: Finished. Time taken: {time_taken}", msglevel=2, loglevel='DEBUG')
 
 def list_databases(dbs : Dict[str, str]) -> None:
     """
@@ -195,7 +210,7 @@ def post_batch(main_outdir : str, outdir : str, batch : str, bi : int) -> Tuple[
     :param main_outdir: the main output directory
     :param outdir: the batch output directory
     :param batch: the batch name
-    :param bi: batch number\
+    :param bi: batch number
     """
 
     # combined files
