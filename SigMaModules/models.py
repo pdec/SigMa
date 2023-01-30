@@ -909,10 +909,11 @@ class Record():
             log_progress(f"Available CDSs: {[cds.qualifiers['protein_id'][0] for cds in self.cdss]}", msglevel = 1, loglevel = "ERROR")
             raise KeyError
 
-    def get_features_of_type(self, ftype: str) -> List[SeqFeature]:
+    def get_features_of_type(self, ftype: str, min_cds_len : int = 14) -> List[SeqFeature]:
         """
         Get features of a given type from SeqRecord
         :param ftype: type of a feature
+        :param min_cds_len: minimum length of the feature to consider. Set to 14 as this is minimum for MMseqs2 "Maybe the sequences length is less than 14 residues."
         :return:
         """
 
@@ -926,6 +927,10 @@ class Record():
                         feature.qualifiers['protein_id'] = [f'{self.record.id}_ft_{fcnt:06d}']
                     if 'record_id' not in feature.qualifiers:
                         feature.qualifiers['record_id'] = [self.record.id]
+                    # check the CDS length
+                    if len(feature.qualifiers['translation'][0]) < min_cds_len:
+                        log_progress(f"CDS {feature.qualifiers['protein_id']} is shorter than {min_cds_len} which break MMseqs2 run. Skipping.", msglevel = 1, loglevel = "WARNING")
+                        continue
                 flist.append(feature)
         
         return flist
