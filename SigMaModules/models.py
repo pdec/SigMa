@@ -918,7 +918,9 @@ class Record():
         """
 
         flist = []
-        for fcnt, feature in enumerate(sorted(self.record.features, key = lambda x: (x.location.start, x.location.end - x.location.start), reverse = False), 1):
+        # filter out features of NoneType that may mess up the sorting
+        pref_feautures = [f for f in self.record.features if f is not None]
+        for fcnt, feature in enumerate(sorted(pref_feautures, key = lambda x: (x.location.start, x.location.end - x.location.start), reverse = False), 1):
             if feature.type == ftype:
                 if ftype == 'CDS':
                     if 'translation' not in feature.qualifiers:
