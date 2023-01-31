@@ -931,7 +931,7 @@ class Record():
                         feature.qualifiers['record_id'] = [self.record.id]
                     # check the CDS length
                     if len(feature.qualifiers['translation'][0]) < min_cds_len:
-                        log_progress(f"CDS {feature.qualifiers['protein_id']} is shorter than {min_cds_len} which break MMseqs2 run. Skipping.", msglevel = 1, loglevel = "WARNING")
+                        log_progress(f"CDS {feature.qualifiers['protein_id'][-1]} is shorter than {min_cds_len} aa which breaks MMseqs2 run. Skipping.", msglevel = 1, loglevel = "WARNING")
                         continue
                 flist.append(feature)
         
