@@ -100,6 +100,7 @@ def main():
     ### Run
     parser.add_argument('-o', '--outdir', help='Output directory', metavar = '<path>', required=True)
     parser.add_argument('-b', '--batches', help='Number of batches to run on input files [%(default)i]', default = 1, metavar = '<num>', type = int)
+    parser.add_argument('-c', '--batch_size', help='Number of query files to process in each batch [%(default)i]', default = 0, metavar = '<num>', type = int)
     parser.add_argument('-B', '--batches_file', help='File with batches to run on input files. Each batch starts with a "batch_" followed by file query file names one in each line', metavar = '<path>', type = str)
     parser.add_argument('-t', '--threads', help='Number of threads to use for data preparation [%(default)i]', default = 4, metavar = '<num>', type = int)
     parser.add_argument('-v', '--version', help='Show program\'s version and exit.', action='version', version='%(prog)s 0.1')
@@ -187,10 +188,10 @@ def main():
         log_progress(f"Found {len(args.query)} query datasets in {args.indir}", loglevel = "DEBUG")
 
     # batches of query datasets
-    if (args.batches > 1) or (args.batches_file):
-        if args.batches > 1:
+    if (args.batches > 1) or (args.batches_file) or (args.batch_size > 0):
+        if args.batches > 1 or args.batch_size > 0:
             log_progress(f"Splitting query datasets based on input order", loglevel = "INFO")
-            args.query_batches = make_batches(args.query, args.batches)
+            args.query_batches = make_batches(args.query, args.batches, args.batch_size)
         elif args.batches_file:
             log_progress("Reading batches", loglevel = "INFO")
             args.query, args.query_batches = read_batch_file(args.batches_file)
