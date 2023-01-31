@@ -216,7 +216,7 @@ def read_batches_done(main_outdir : str) -> List[str]:
 
 def post_batch(main_outdir : str, outdir : str, batch : str, bi : int) -> Tuple[int, int]:
     """
-    Post a batch of files to Artemis.
+    If a batch is complete, combine output batch files of verified and candidate regions into combined files.
     :param main_outdir: the main output directory
     :param outdir: the batch output directory
     :param batch: the batch name
