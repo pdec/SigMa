@@ -177,19 +177,17 @@ def make_batches(items : List, batches : int = 1, batch_size : int = 0) -> Dict[
         batches = int(len(items) / batch_size)
         if batch_size * batches < len(items):
             batches += 1
-        log_progress(f"Batch size: {batch_size}", msglevel = 1, loglevel = "INFO")
-        log_progress(f"Number of batches: {batches}", msglevel = 1, loglevel = "INFO")
     elif batches > 1:
         batch_size = int(len(items) / batches)
         if batch_size * batches < len(items):
             batch_size += 1
-        log_progress(f"Batch size: {batch_size}", msglevel = 1, loglevel = "INFO")
-        log_progress(f"Number of batches: {batches}", msglevel = 1, loglevel = "INFO")
+
+    log_progress(f"Batch size: {batch_size}", msglevel = 1, loglevel = "INFO")
+    log_progress(f"Number of batches: {batches}", msglevel = 1, loglevel = "INFO")
 
     for bi, si in enumerate(range(0, len(items), batch_size), 1):
         batch_name = f"batch_{bi:04d}"
         batch_dict[batch_name] = items[si:si + batch_size]
-    
     
     log_progress(f"Batch {list(batch_dict.keys())[0]} contains {len(list(batch_dict.values())[0])} files", msglevel = 1, loglevel = "INFO")
     log_progress(f"Batch {list(batch_dict.keys())[-1]} contains {len(list(batch_dict.values())[-1])} files", msglevel = 1, loglevel = "INFO")

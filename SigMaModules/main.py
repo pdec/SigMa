@@ -192,6 +192,8 @@ def main():
         if args.batches > 1 or args.batch_size > 0:
             log_progress(f"Splitting query datasets based on input order", loglevel = "INFO")
             args.query_batches = make_batches(args.query, args.batches, args.batch_size)
+            if args.batch_size > 0:
+                args.batches = len(args.query_batches)
         elif args.batches_file:
             log_progress("Reading batches", loglevel = "INFO")
             args.query, args.query_batches = read_batch_file(args.batches_file)
