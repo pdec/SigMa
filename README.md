@@ -1,22 +1,8 @@
 # SigMa
 SigMa was designed for iterative prophage identification in bacterial genomes.
 
-It is meant to allow incorporation of validated (manually or autoamtically) prophage predictions of analyzed set of genomes prior next iteration.
+It is meant to allow incorporation of validated (manually or automatically) prophage predictions of analyzed sets of genomes prior next iteration(s).
 
-## TODO
-### Major things to do
-- [x] - dereplication of candidate regions in automatic run mode
-- [x] - write GenBank files
-- [x] - write summary TSV
-- [ ] - managing config files or input mapping files
-- [x] - default reference datasets configuration
-- [x] - managing batch iterations
-- [x] - determine SigMa requirements and prepare envs
-- [x] - implement PhiSpy
-
-### Optional
-- [ ] - rewrite diamond to MMSEQs for protein searches
-- [ ] - implement HMMER (pVOGs, VOGDB)
 ## Installation
 Before you start using SigMa, you should have programs and packages installed on your system or conda env. 
 We provide a conda configuration file `sigma_env.yml` to make the process easier, yet you will still need to install MeShClust yourself as well as configure CheckV database.
@@ -151,27 +137,29 @@ SigMa is supposed to run in a single on multiple iterations mode with and withou
 ## Single run steps
 Each iteration consists of the following steps:
 1. Set up reference datasets --> `reference/`
-    - [x] set up datasets
+    - set up datasets
 2. Prepare query sequences --> `query/`
-    - [x] extract protein and nucleotide sequences
+    - extract protein and nucleotide sequences
 3. Search --> `search/`
-    - [ ] PhiSpy
-    - [x] nucleotide-based search
-    - [x] protein-based search
-    - [x] mmseqs profile-based search
-    - [ ] hmmer profile-based search
+    - PhiSpy --> `phispy/`
+    - nucleotide-based search
+    - protein-based search
+    - mmseqs profile-based search
 4. Evaluate results
-    - [x] read results
-    - [x] map results/signal presence on sequences
-    - [x] merge adjacent/overlapping signals 
-    - [x] determine candidate regions
-    - [x] merge overlapping regions and consider as candidates
-    - [x] write candidate regions --> `regions/candidate.fasta`
-    - [x] write Artemis plot files --> `artemis_plots/`
+    - read results
+    - map results/signal presence on sequences
+    - merge adjacent/overlapping signals 
+    - determine candidate regions
+    - merge overlapping regions and consider as candidates
+    - write candidate regions --> `regions/candidate.fasta`
+    - write Artemis plot files --> `artemis_plots/`
 5. Validate predictions --> `regions/verified.fasta` and `regions/verified.gb`
-    - [ ] manually - go throught predictions and select phage and non-phage regions
-    - [x] automatically - run CheckV on picked regions and select 
-      - [x] Complete
-      - [x] High-quality
-      - [x] Medium-quality but of length >= 20kb and fraction >= 0.85
+    - manually - go throught predictions and select phage and non-phage regions
+    - automatically - run CheckV on picked regions and select 
+       - Complete
+       - High-quality
+       - Medium-quality but of length >= 20kb and fraction >= 0.85
 
+## Funding
+- The National Science Centre PRELUDIUM 15 grant no. 2018/29/N/NZ8/00228.
+- The Polish National Agency for Academic Exchange Bekker Programme Fellowship no. BPN/BEK/2021/1/00416.
