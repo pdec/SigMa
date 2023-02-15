@@ -717,7 +717,7 @@ class Query(Input):
         elif self.type == 'genbank':
             cnt = 0
             for record in sorted(parse_genbank(self.file_path), key = lambda x: len(x.seq), reverse=True):
-                self.records.append(RecordQuery(record))
+                self.records.append(RecordQuery(record, file_path))
                 self.cdss.extend(self.records[-1].get_cdss())
                 log_progress(f"{record.id}: {self.records[-1].len()} bps and {len(self.cdss) - cnt} CDSs", msglevel = 1, loglevel = "DEBUG")
                 cnt = len(self.cdss)
@@ -822,13 +822,14 @@ class Record():
     General record class
     """
 
-    def __init__(self, record : SeqRecord):
+    def __init__(self, record : SeqRecord, file_path : str):
         self.record : SeqRecord = record
         self.name : str = f"{self.record.id}|{self.len()}"
         self.cdss : List[SeqFeature] = self.get_features_of_type('CDS')
         self.cdss_idx : Dict[str : int] = {cds.qualifiers['protein_id'][0] : i for i, cds in enumerate(self.cdss)}
-        self.nt_path: str = ""
-        self.aa_path: str = ""
+        self.nt_path : str = ""
+        self.aa_path : str = ""
+        self.file_path : str = file_path
 
     ### default methods ###
     def __len__(self):
@@ -982,8 +983,8 @@ class RecordQuery(Record):
     Single record query class
     """
 
-    def __init__(self, record : SeqRecord):
-        super().__init__(record)
+    def __init__(self, record : SeqRecord, file_path : str):
+        super().__init__(record, file_path)
         self.regions = {'nt_based': [], 'aa_based': [], 'merged': []}
         self.signals = {'nt_based': {}, 'aa_based': {}}
 
@@ -1116,6 +1117,7 @@ class RecordQuery(Record):
                                     region_start = self.cdss[i_pos].location.nofuzzy_start
                                     region_end = self.cdss[i_gap - max_gap_size + 1].location.nofuzzy_end
                                 candidate_region = Region(
+                                    file_path = self.file_path,
                                     record = self.get_record()[region_start : region_end],
                                     start = region_start,
                                     end = region_end,
@@ -1147,6 +1149,7 @@ class RecordQuery(Record):
                             region_start = self.cdss[i_pos].location.nofuzzy_start
                             region_end = self.cdss[z_pos].location.nofuzzy_end
                         candidate_region = Region(
+                            file_path = self.file_path,
                             record = self.get_record()[region_start : region_end],
                             start = region_start,
                             end = region_end,
@@ -1200,6 +1203,7 @@ class RecordQuery(Record):
         signal_group = 'merged'
         for region_start, region_end in ranges:
             candidate_region = Region(
+                file_path = self.file_path,
                 record = self.get_record()[region_start : region_end],
                 start = region_start,
                 end = region_end,
@@ -1218,7 +1222,8 @@ class Region(Record):
     Region class
     """
 
-    def __init__(self, record : SeqRecord, start : int, end : int, signal : np.ndarray, signal_source : str, signal_group : str, rno : int, category : str = 'pp', status : str = 'candidate'):
+    def __init__(self, file_path : str, record : SeqRecord, start : int, end : int, signal : np.ndarray, signal_source : str, signal_group : str, rno : int, category : str = 'pp', status : str = 'candidate'):
+        self.file_path = file_path
         self.record = record
         self.start = start
         self.end = end
@@ -1317,6 +1322,7 @@ class Region(Record):
         """
 
         return [
+            self.file_path,
             self.id,
             self.desc,
             self.record.id,
