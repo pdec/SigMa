@@ -152,7 +152,7 @@ Each iteration consists of the following steps:
     - determine candidate regions
     - merge overlapping regions and consider as candidates
     - write candidate regions --> `regions/candidate.fasta`
-    - write Artemis plot files --> `artemis_plots/`
+    - write Artemis plot files --> `plots/`
 5. Validate predictions --> `regions/verified.fasta` and `regions/verified.gb`
     - manually - go throught predictions and select phage and non-phage regions
     - automatically - run CheckV on picked regions and select 

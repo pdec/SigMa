@@ -2,9 +2,10 @@ from typing import Union, List, Dict
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import pandas as pd
+import gzip
 import re
 
-from .utils import colours
+from .utils import colours, log_progress
 
 __author__ = 'Przemyslaw Decewicz'
 
@@ -49,12 +50,10 @@ def write_df_to_artemis(df : pd.DataFrame,  file_path : str,  colours : List[str
     :param file_path: name of the file to write to
     :return:
     """
-    df.to_csv(file_path, sep=' ', index=True)
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
 
-    with open(file_path, 'w') as f:
-        header = lines[0].split()
+    with gzip.open(file_path, 'wt', compresslevel = 6) as f:
+
+        header = df.columns
         f.write('# BASE {}\n'.format(' '.join(header)))
 
         colours_rgb = []
@@ -65,8 +64,8 @@ def write_df_to_artemis(df : pd.DataFrame,  file_path : str,  colours : List[str
         f.write('# colour {}\n'.format (' '.join(colours_rgb)))
         f.write('# label {}\n'.format(' '.join(header))) # the label must go after colour
         f.write('# name {}\n'.format (' '.join(colours_names)))
-        for line in lines[1:]:
-            if len(line.split()) == 1:
-                continue
-            f.write(line)
+
+    # add dataframe content to the file
+    df.dropna(axis=0, how='all').to_csv(file_path, sep=' ', index=True, compression={'method': 'gzip', 'compresslevel': 6, 'mtime': 1}, mode='a')
+
 

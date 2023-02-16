@@ -33,7 +33,7 @@ def run_sigma(args):
         sigma.write_regions(candidate_regions, 'candidate')
 
         # write Artemis plot files
-        if args.artemis_plots: sigma.write_artemis_plots()
+        if args.plots: sigma.write_plots()
 
         if args.skip_checkv:
             log_progress('CheckV validation skipped.', msglevel = 0, loglevel = "INFO")
@@ -104,6 +104,10 @@ def main():
         'CRITICAL',
     ]
 
+    PLOTS = [
+        'artemis',
+    ]
+
     ### Run
     parser.add_argument('-o', '--outdir', help='Output directory', metavar = '<path>', required=True)
     parser.add_argument('-b', '--batches', help='Number of batches to run on input files [%(default)i]', default = 1, metavar = '<num>', type = int)
@@ -158,7 +162,7 @@ def main():
     parser_validate.add_argument('--checkv_sig_frac', help='Minimum fraction of signal of all CheckV candidates to consider [%(default).2f]', default = 0.5, metavar = ' ', type = float)
     parser_validate.add_argument('--checkv_mq_len', help='Minimum length of CheckV *Medium-quality* candidates [%(default)i]', default = 20000, metavar = ' ', type = int)
     parser_validate.add_argument('--checkv_mq_sig_frac', help='Minimum fraction of signal of CheckV *Medium-quality* candidates [%(default).2f]', default = 0.85, metavar = ' ', type = float)
-    parser_validate.add_argument('--artemis_plots', help='Generate Artemis plots for query records', action = 'store_true')
+    parser_validate.add_argument('--plots', help='Generate plots with signals for each record. Allowed types: %(choices)s', choices = PLOTS, metavar = ' ', type = str, nargs = '+')
     parser_validate.add_argument('--sig_groups', help='Signal groups to consider for validation. Allowed types: %(choices)s [%(default)s] ', choices = SIG_GROUPS, default = 'all', metavar = ' ', type = str, nargs = '+')
     
     args = parser.parse_args()

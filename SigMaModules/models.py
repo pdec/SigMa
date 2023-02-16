@@ -32,9 +32,9 @@ class SigMa():
         self.dirs = {}
 
         # setup output directories
-        directories = ['reference', 'query', 'search', 'artemis_plots', 'regions', 'checkv', 'phispy']
+        directories = ['reference', 'query', 'search', 'plots', 'regions', 'checkv', 'phispy']
         for dir_name in directories:
-            if dir_name == 'artemis_plots' and not args.artemis_plots:
+            if dir_name == 'plots' and not args.plots:
                 continue
             elif dir_name == 'phispy' and args.ext_tools and ('phispy' not in args.ext_tools):
                 continue
@@ -516,17 +516,19 @@ class SigMa():
                 out.write(sep.join(map(str, region.to_list())) + "\n")
         log_progress(f"wrote summary to {ver_sum_path}", msglevel = 1, loglevel="INFO")
             
-    def write_artemis_plots(self) -> None:
+    def write_plots(self) -> None:
         """
-        Writes Artemis plot files for all query records.
+        Writes plot files for all query records.
         :return: None
         """
 
-        log_progress("Writing Artemis plot files", msglevel = 0, loglevel = "INFO")
+        log_progress("Writing plot files", msglevel = 0, loglevel = "INFO")
         # prepare output file path
-        artemis_dir = self.dirs['artemis_plots']
-        for record_query in self.record_queries:
-            record_query.artemis_plot(artemis_dir)
+        plot_dir = self.dirs['plots']
+        for plot_type in self.args.plots:
+            if plot_type == 'artemis':
+                for record_query in self.record_queries:
+                    record_query.plot(plot_dir, plot_type)
 
 class Input():
     """
@@ -1042,14 +1044,16 @@ class RecordQuery(Record):
             for signal_name, signal in signal_names.items():
                 log_progress(f"{signal_name}: {sum([1 if x else 0 for x in signal])}/{signal.size} of total {sum(signal)}", msglevel = 2, loglevel='DEBUG')
 
-    def artemis_plot(self, output_dir : str) -> None:
+    def plot(self, output_dir : str, plot_type : str) -> None:
         """
-        Writes Artemis plot files of the query regions.
+        Writes plot files of the query regions.
         :param output_dir: output directory
+        :param plot_type: plot type
         """
 
-        output_path = os.path.join(output_dir, f"{self.record.id}.artemis.plot")
-        write_df_to_artemis(self._get_signal_df(), output_path)
+        if plot_type == 'artemis':
+            output_path = os.path.join(output_dir, f"{self.record.id}.artemis.plot.gz")
+            write_df_to_artemis(self._get_signal_df(), output_path)
 
     def add_signal(self, signal_group : str, signal_name : str, signal_array : np.ndarray) -> None:
         """
