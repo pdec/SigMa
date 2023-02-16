@@ -387,7 +387,7 @@ class SigMa():
 
         log_progress("Running PhiSpy", msglevel = 1, loglevel = "DEBUG")
         # prepare output file path
-        cmd = f"PhiSpy.py --output_dir {self.dirs['phispy']} --threads {self.args.threads} --output_choice 1 --color {query.get_file_path()} -p {prefix}"
+        cmd = f"PhiSpy.py --output_dir {self.dirs['phispy']} --threads {self.args.threads} --output_choice 1 --color {query.get_file_path()} -p {prefix}{'' if not self.args.phispy_phmms else f' --phmms {self.args.phispy_phmms}'}"
         call_process(cmd, program="phispy")
 
         log_progress("Processing PhiSpy output data", msglevel = 1, loglevel = "DEBUG")
