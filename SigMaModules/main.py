@@ -106,6 +106,7 @@ def main():
 
     PLOTS = [
         'artemis',
+        'plotly'
     ]
 
     ### Run

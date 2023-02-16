@@ -3,6 +3,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import pandas as pd
 import gzip
+import json
 import re
 
 from .utils import colours, log_progress
@@ -67,5 +68,26 @@ def write_df_to_artemis(df : pd.DataFrame,  file_path : str,  colours : List[str
 
     # add dataframe content to the file
     df.dropna(axis=0, how='all').to_csv(file_path, sep=' ', index=True, compression={'method': 'gzip', 'compresslevel': 6, 'mtime': 1}, mode='a')
+
+def write_df_to_plotly(df : pd.DataFrame, file_path : str):
+    """
+    Write and clean dataframe to Plotly graph file
+    :param df: Pandas dataframe with base position in first column and values in other columns
+    :param file_path: name of the file to write to
+    :return:
+    """
+
+    # NOTE
+    # single `null` value needs to be inserted between each consecutive pair of non-null 
+    # values to make breaks in the line in both x and y axes in plotly.js
+    
+    j = {"data": [], "layout": {}} # initialise the plotly json object
+    for col in df.columns:
+        tdf = df[[col]]
+        tdf = tdf.loc[~(tdf==0).all(axis=1)]
+        j["data"].append({"x": tdf.index.to_list(), "y": tdf[col].to_list(), "name": col, "type": "line"})
+
+    with open(file_path, 'w') as f: 
+        json.dump(j, f)
 
 

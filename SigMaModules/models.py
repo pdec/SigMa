@@ -4,7 +4,7 @@ Module defining SigMa models
 
 from .read import parse_fasta, parse_genbank
 from .utils import log_progress, call_process
-from .write import format_seq, write_df_to_artemis
+from .write import format_seq, write_df_to_artemis, write_df_to_plotly
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
@@ -526,9 +526,8 @@ class SigMa():
         # prepare output file path
         plot_dir = self.dirs['plots']
         for plot_type in self.args.plots:
-            if plot_type == 'artemis':
-                for record_query in self.record_queries:
-                    record_query.plot(plot_dir, plot_type)
+            for record_query in self.record_queries:
+                record_query.plot(plot_dir, plot_type)
 
 class Input():
     """
@@ -1054,6 +1053,10 @@ class RecordQuery(Record):
         if plot_type == 'artemis':
             output_path = os.path.join(output_dir, f"{self.record.id}.artemis.plot.gz")
             write_df_to_artemis(self._get_signal_df(), output_path)
+
+        if plot_type == 'plotly':
+            output_path = os.path.join(output_dir, f"{self.record.id}.plotly.json")
+            write_df_to_plotly(self._get_signal_df(), output_path)
 
     def add_signal(self, signal_group : str, signal_name : str, signal_array : np.ndarray) -> None:
         """
