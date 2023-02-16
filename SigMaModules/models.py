@@ -183,15 +183,15 @@ class SigMa():
 
                 # EVALUATE SIGNALS
                 log_progress(f"[{done_q} - {done_rq}] Evaluating {record_query}", msglevel = 1, loglevel = "DEBUG")
-                record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac)
+                record_query.evaluate(self.args.max_nt_gap, self.args.min_nt_sig, self.args.max_aa_gap, self.args.min_aa_sig, self.args.min_sig_frac, self.args.sig_groups)
                 record_query.merge_regions()
                 for regions in record_query.get_regions().values():
                     self.regions.extend(regions)
 
 
-            log_progress(f" {len(self.filter_regions(sig_group = 'merged')) - rm_num} unique regions ({len(self.regions) - r_num} in total) were identified", msglevel = 1, loglevel = "INFO")
-            rm_num = len(self.filter_regions(sig_group = 'merged'))
             r_num = len(self.regions)
+            rm_num = len(self.filter_regions(sig_groups = 'merged'))
+            log_progress(f"{rm_num} merged non-overlapping regions were identified based on {r_num - rm_num} regions", msglevel = 1, loglevel = "INFO")
 
     # not used - as of now
     # def prepare_queries(self):
@@ -295,28 +295,39 @@ class SigMa():
 
     #     log_progress(f"In total {len(self.regions)} regions were identified", msglevel = 0, loglevel = "INFO")
 
-    def filter_regions(self, sig_group : Union[str, List[str]] = None, sig_sources : Union[str, List[str]] = None, status : Union[str, List[str]] = None) -> List:
+    def filter_regions(self, sig_groups : Union[str, List[str]] = None, sig_sources : Union[str, List[str]] = None, status : Union[str, List[str]] = None) -> List:
         """
         Filter regions based on provided parameters
-        :param sig_group: signal groups to choose
+        :param sig_groups: signal groups to choose
         :param sig_sources: signal sources to choose
         :param status: status to choose
         :return: list of filtered regions                        
         """
 
-        if isinstance(sig_group, str):
-            sig_group = [sig_group]
+        # make a list if a string is provided
+        if isinstance(sig_groups, str):
+            sig_groups = [sig_groups]
         if isinstance(sig_sources, str):
             sig_sources = [sig_sources]
         if isinstance(status, str):
             status = [status]
 
-        if not sig_group:
-            sig_group = ['nt_based', 'aa_based', 'merged']
+        # set sig_sources
+        # at the moment only 'all' or 'combined' are handled
+        if (not sig_sources) or (sig_sources == ['all']):
+            sig_sources = ['all', 'combined', 'merged']
+
+        # set sig_groups
+        if (not sig_groups) or (sig_groups == ['all']):
+            sig_groups = ['nt_based', 'aa_based', 'merged']
 
         regions = []
         for region in self.regions:
-            if region.signal_group not in sig_group:
+            if 'all' in sig_sources:
+                pass
+            elif region.signal_source not in sig_sources:
+                continue
+            if region.signal_group not in sig_groups:
                 continue
             if status and region.status not in status:
                 continue
@@ -331,7 +342,7 @@ class SigMa():
         :return: list of high quality regions
         """
         
-        for region in self.filter_regions(sig_group = 'merged', sig_sources = 'merged', status = ['CheckV Complete', 'CheckV High-quality', 'CheckV Medium-quality']):
+        for region in self.filter_regions(sig_groups = 'merged', sig_sources = 'merged', status = ['CheckV Complete', 'CheckV High-quality', 'CheckV Medium-quality']):
             if region.status in ['CheckV Complete', 'CheckV High-quality']:
                 if region.len() >= self.args.checkv_len and region.get_sig_frac() >= self.args.checkv_sig_frac:
                     self.hq_regions.append(region)
@@ -491,12 +502,12 @@ class SigMa():
 
         # write general summary
         with open(gen_sum_path, 'w') as out:
-            for region in self.filter_regions(sig_group=['nt_based', 'aa_based']):
+            for region in self.filter_regions(sig_groups=['all'], sig_sources=['all']):
                 out.write(sep.join(map(str, region.to_list())) + "\n")
         log_progress(f"wrote summary to {gen_sum_path}", msglevel = 1, loglevel="INFO")    
         
         with open(cand_sum_path, 'w') as out:
-            for region in self.filter_regions(sig_group=['merged']):
+            for region in self.filter_regions(sig_groups=['merged'], sig_sources=['merged']):
                 out.write(sep.join(map(str, region.to_list())) + "\n")
         log_progress(f"wrote summary to {cand_sum_path}", msglevel = 1, loglevel="INFO")
         
@@ -1061,7 +1072,7 @@ class RecordQuery(Record):
                 combined_array += signal_array
             self.add_signal(signal_group, 'combined', combined_array)
 
-    def evaluate(self, max_nt_gap : int, min_nt_signals : int, max_aa_gap : int, min_aa_signals : int, min_sig_frac : float) -> None:
+    def evaluate(self, max_nt_gap : int, min_nt_signals : int, max_aa_gap : int, min_aa_signals : int, min_sig_frac : float, sig_groups : List[str]) -> None:
         """
         Evaluate signal for each approach and database #TODO allow for combining signal from different approaches
         :param max_nt_gap: max nt gap between signal
@@ -1069,8 +1080,15 @@ class RecordQuery(Record):
         :param max_aa_gap: max aa gap between signal
         :param min_aa_sig: min aa signal
         :param min_sig_frac: min signal fraction
+        :param sig_sources: list of signal sources to consider
         """
+        log_progress(f"Using " + ", ".join(sig_groups) + " signal groups.", msglevel = 1, loglevel='DEBUG')
+        if 'all' in sig_groups or 'combined' in sig_groups:
+            sig_groups = ['nt_based', 'aa_based']
         for signal_group in self.signals.keys():
+            # skip the signal if not in the list of signal groups to consider
+            if signal_group not in sig_groups:
+                continue
             # setup thresholds for signal considerations and regions merging
             if signal_group == 'nt_based':
                 max_gap_size = max_nt_gap
@@ -1215,7 +1233,7 @@ class RecordQuery(Record):
             self.regions[signal_group].append(candidate_region)
             log_progress(f"{len(self.regions[signal_group])}: {candidate_region}", msglevel = 2, loglevel='DEBUG')
 
-        log_progress(f"found {len(self.regions['merged'])} non-overlapping regions based on {len(self.regions['nt_based'])} and {len(self.regions['aa_based'])} regions in nt and aa space", msglevel = 1, loglevel='DEBUG')
+        log_progress(f"found {len(self.regions['merged'])} non-overlapping regions: {len(self.regions['nt_based'])} based on nt signal group and {len(self.regions['aa_based'])} based on aa signal group", msglevel = 1, loglevel='DEBUG')
 
 class Region(Record):
     """

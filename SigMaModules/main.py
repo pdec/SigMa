@@ -24,10 +24,10 @@ def run_sigma(args):
     sigma.handle_queries()
 
     # filter merged regions
-    candidate_regions = sigma.filter_regions(sig_group = 'merged')
+    candidate_regions = sigma.filter_regions(sig_groups = 'merged', sig_sources = 'merged')
     if len(candidate_regions) > 0:
         # list candidate regions
-        log_progress(f"Selected {len(candidate_regions)} unique candidate regions", msglevel = 0, loglevel = "INFO")
+        log_progress(f"Considering {len(candidate_regions)} candidate regions for validation", msglevel = 0, loglevel = "INFO")
 
         # write cadidate regions
         sigma.write_regions(candidate_regions, 'candidate')
@@ -37,23 +37,28 @@ def run_sigma(args):
 
         if args.skip_checkv:
             log_progress('CheckV validation skipped.', msglevel = 0, loglevel = "INFO")
-            return
+            
+            # write summary
+            sigma.write_summary()
 
-        # run CheckV
-        sigma.run_checkv()
+            # write candidate regions
+            sigma.write_regions(candidate_regions, 'candidate', format = ['fasta', 'genbank'])
+        else:
+            # run CheckV
+            sigma.run_checkv()
 
-        # filter only high-quality regions
-        sigma.filter_hq_regions()
+            # filter only high-quality regions
+            sigma.filter_hq_regions()
 
-        # list high-quality regions
-        log_progress(f"Selected {len(sigma.hq_regions)} high-quality regions", msglevel = 0, loglevel = "INFO")
-        sigma.list_regions(sigma.hq_regions)
+            # list high-quality regions
+            log_progress(f"Selected {len(sigma.hq_regions)} high-quality regions", msglevel = 0, loglevel = "INFO")
+            sigma.list_regions(sigma.hq_regions)
 
-        # write summary
-        sigma.write_summary()
+            # write summary
+            sigma.write_summary()
 
-        # write verified regions
-        sigma.write_regions(sigma.hq_regions, 'verified', format = ['fasta', 'genbank'])
+            # write verified regions
+            sigma.write_regions(sigma.hq_regions, 'verified', format = ['fasta', 'genbank'])
     else:
         log_progress('No candidate regions found.')
 
@@ -84,9 +89,11 @@ def main():
         'phispy',
     ]
 
-    SIG_SOURCES = [
+    SIG_GROUPS = [
         'all',
         'combined',
+        'nt_based',
+        'aa_based'
     ]
 
     LOGGING = [
@@ -151,7 +158,7 @@ def main():
     parser_validate.add_argument('--checkv_mq_len', help='Minimum length of CheckV *Medium-quality* candidates [%(default)i]', default = 20000, metavar = ' ', type = int)
     parser_validate.add_argument('--checkv_mq_sig_frac', help='Minimum fraction of signal of CheckV *Medium-quality* candidates [%(default).2f]', default = 0.85, metavar = ' ', type = float)
     parser_validate.add_argument('--artemis_plots', help='Generate Artemis plots for query records', action = 'store_true')
-    parser_validate.add_argument('--sig_sources', help='Signal sources to consider for validation. Allowed types: %(choices)s [%(default)s] ', choices = SIG_SOURCES, default = 'all', metavar = ' ', type = str)
+    parser_validate.add_argument('--sig_groups', help='Signal groups to consider for validation. Allowed types: %(choices)s [%(default)s] ', choices = SIG_GROUPS, default = 'all', metavar = ' ', type = str, nargs = '+')
     
     args = parser.parse_args()
     if len(sys.argv) < 2:
