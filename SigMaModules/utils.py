@@ -33,7 +33,7 @@ def create_logger(log_path : str, log_level : str = "INFO", simple : bool = Fals
     if simple:
         logFormatter = logging.Formatter(fmt='%(message)s')
     else:
-        logFormatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d [%(levelname)-8.8s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+        logFormatter = logging.Formatter(fmt='%(asctime)s [%(levelname)-1.1s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('SigMa')
     logger.setLevel(log_level)
     # file logger
