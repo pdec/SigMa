@@ -2,16 +2,16 @@
 A module to read various files
 """
 
+from .utils import log_progress
+from typing import List, Dict
+from Bio.SeqRecord import SeqRecord
+from Bio import SeqIO
 import binascii
 import sys
 import gzip
 import warnings
 from Bio import BiopythonWarning
 warnings.simplefilter('ignore', BiopythonWarning)
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
-from typing import List, Dict
-from .utils import log_progress
 
 
 def is_gzip_file(file_path: str) -> bool:
@@ -38,7 +38,8 @@ def parse_genbank(file_path: str, verbose=False) -> List[SeqRecord]:
         else:
             handle = open(file_path, 'r')
     except IOError as e:
-        log_progress(f"There was an error opening {file_path}", msglevel = 0, loglevel = "ERROR")
+        log_progress(
+            f"There was an error opening {file_path}", msglevel=0, loglevel="ERROR")
         sys.exit(20)
 
     return list(SeqIO.parse(handle, "genbank"))
@@ -56,10 +57,12 @@ def parse_fasta(file_path: str, verbose=False) -> List[SeqRecord]:
         else:
             handle = open(file_path, 'r')
     except IOError as e:
-        log_progress(f"There was an error opening {file_path}", msglevel = 0, loglevel = "ERROR")
+        log_progress(
+            f"There was an error opening {file_path}", msglevel=0, loglevel="ERROR")
         sys.exit(20)
 
     return list(SeqIO.parse(handle, "fasta"))
+
 
 def read_batch_file(batch_file: str, verbose=False) -> Dict[str, List[str]]:
     """
@@ -82,7 +85,8 @@ def read_batch_file(batch_file: str, verbose=False) -> Dict[str, List[str]]:
         else:
             handle = open(batch_file, 'r')
     except IOError as e:
-        log_progress(f"There was an error opening {batch_file}", msglevel = 0, loglevel = "ERROR")
+        log_progress(
+            f"There was an error opening {batch_file}", msglevel=0, loglevel="ERROR")
         sys.exit(20)
 
     batch_dict = {}
@@ -99,6 +103,7 @@ def read_batch_file(batch_file: str, verbose=False) -> Dict[str, List[str]]:
             query.append(line)
 
     for batch, files in batch_dict.items():
-        log_progress(f"Batch {batch} contains {len(files)} files", msglevel = 1, loglevel = "INFO")
+        log_progress(
+            f"Batch {batch} contains {len(files)} files", msglevel=1, loglevel="INFO")
 
     return query, batch_dict

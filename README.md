@@ -33,7 +33,6 @@ checkv download_database <path_to_checkv_db>
 export CHECKVDB=<path_to_checkv_db>
 ```
 ### Requirements
-  - diamond==2.0.15
   - mmseqs==14.7e284
   - pandas>=1.4.3
   - numpy>=1.22.3
@@ -54,7 +53,7 @@ During the run, SigMa considers all reference datasets separately but can combin
 After candidate regions are picked from each signal groups (all reference datasets and potentially 'combined' group) they are all overlayed and merged to pick unique ranges within each sequence to verify further with CheckV and/or manually. Coordinates of all candidates are still written to summary files.
 
 ### Set up reference databases
-The repo comes with a set of prophages we have manually identified - `./data/pps.gb.gz`.
+The repo comes with a set of prophages we have manually identified - `./data/pps.gb.gz` and a subset of PHROGS database `./data/PHROGS_SigMa.tar.gz` with profiles for tail, head and packaging, lysis, connector, and integration and excision functional categories. This way we're reducing a lot of false positives. 
 We'll put all reference databases to `./dbs/` directory within the repo.
 
 Let's create the db directory.
@@ -68,7 +67,12 @@ conda activate sigma
 python scripts/prepdb.py --gb ./data/pps.gb.gz --dbdir ./dbs --threads 4 --tmp ./tmp`
 ```
 
-To download PHROGS MMSeqs HMM profiles you can use these commands:
+Extract provided PHROGS MMseqs2 profiles:
+```bash
+tar xzvf ./data/PHROGS_SigMa.tar.gz -C ./dbs
+```
+
+To download all PHROGS MMSeqs2 profiles you can use these commands:
 
 ```bash
 curl https://phrogs.lmge.uca.fr/downloads_from_website/phrogs_mmseqs_db.tar.gz
@@ -78,31 +82,15 @@ rm -r phrogs_mmseqs_db*
 ```
 
 However, we have noticed that to use the newest MMSeqs v.14 profile database needs to be recreated.
-You can use the following commands to achieve that. Note that it might take a while to perform, but you need to do it once.
+You can use the following commands to achieve that.
 
 ```bash
 %%bash
 # download MSA FASTA files
 wget https://phrogs.lmge.uca.fr/downloads_from_website/MSA_phrogs.tar.gz
-tar zxf MSA_phrogs.tar.gz
-# get easel miniaps to  convert MSA
-git clone https://github.com/EddyRivasLab/easel
-cd easel
-autoconf
-./configure
-make
-make check 
-cd ..
-# convert MSAs to stockholm format
-for f in $(ls MSA_Phrogs_M50_FASTA); do ./easel/miniapps/esl-reformat stockholm MSA_Phrogs_M50_FASTA/$f; done | gzip > phrogs.msa.sto.gz
-# create MMseqs profile DB
-conda run -n sigma mmseqs convertmsa phrogs.msa.sto.gz msaDb
-conda run -n sigma mmseqs msa2profile msaDb phrogsProfileDB 
-# clean up
-rm -r MSA_*
-rm -r easel
-rm phrogs.msa.sto.gz 
-rm msaDb*
+mmseqs tar2db MSA_phrogs.tar.gz phrogsMSA --output-dbtype 11 --tar-include '.+\.fma$'
+mmseqs msa2profile phrogsMSA ./dbs/phrogsProfileDB
+rm MSA_phrogs.tar.gz phrogsMSA*
 ```
 
 To download INPHARED latest database you cas use these commands but remember to modify the date.
@@ -113,7 +101,7 @@ We'll download all phage genbanks as we'll cluster them anyway and it's easier t
 conda activate sigma
 curl http://inphared.s3.climb.ac.uk/1Oct2022_phages_downloaded_from_genbank.gb -o inphared.gb
 # consider more threads as this one might take a while
-python scripts/prepdb.py --gb inphared.gb --dbdir ./dbs --threads 4 --tmp ./tmp
+python scripts/prepdb.py --gb inphared.gb --dbdir ./dbs --threads 8 --tmp ./tmp
 rm inphared.gb
 ```
 
@@ -160,6 +148,13 @@ Each iteration consists of the following steps:
        - High-quality
        - Medium-quality but of length >= 20kb and fraction >= 0.85
 
+## Citation
+If you use SigMa remember to cite the tools it incorporates:
+- Camacho, C., Coulouris, G., Avagyan, V., Ma, N., Papadopoulos, J., Bealer, K., Madden, T.L. BLAST+: Architecture and applications. BMC Bioinformatics, 10, 421, (2009). https://doi.org/10.1186/1471-2105-10-421.
+- Steinegger M. and Soeding J. MMseqs2 enables sensitive protein sequence searching for the analysis of massive data sets. Nature Biotechnology, 35, 1026–1028 (2017). https://doi.org/10.1038/nbt.3988.
+- Cook R, Brown N, Redgwell T, Rihtman B, Barnes M, Clokie M, Stekel DJ, Hobman JL, Jones MA, Millard A. INfrastructure for a PHAge REference Database: Identification of Large-Scale Biases in the Current Collection of Cultured Phage Genomes. PHAGE, 214-223 (2021). http://doi.org/10.1089/phage.2021.0007.
+- Terzian P., Olo Ndela E., Galiez C., Lossouarn J., Pérez Bucio R.E., Mom R., Toussaint A., Petit M.A., Enault F. PHROG : families of prokaryotic virus proteins clustered using remote homology", NAR Genomics and Bioinformatics, Volume 3, Issue 3, September 2021, lqab067. https://doi.org/10.1093/nargab/lqab067
+- Hani Z. Girgis. MeShClust v3.0: High-quality clustering of DNA sequences using the mean shift algorithm and alignment-free identity scores BMC Genomics 23, 423 (2022). https://doi.org/10.1186/s12864-022-08619-0
 ## Funding
 - The National Science Centre PRELUDIUM 15 grant no. 2018/29/N/NZ8/00228.
 - The Polish National Agency for Academic Exchange Bekker Programme Fellowship no. BPN/BEK/2021/1/00416.

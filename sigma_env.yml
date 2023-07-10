@@ -3,7 +3,6 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - diamond=2.0.15
   - mmseqs2=14.7e284
   - pandas>=1.4.3
   - numpy>=1.22.3
