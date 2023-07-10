@@ -135,6 +135,5 @@ dmypy.json
 tmp*
 
 # data
-data*
 test_data*
 db*
