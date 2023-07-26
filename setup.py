@@ -14,7 +14,7 @@ def main():
         scripts=["SigMa.py", "scripts/prepdb.py"],
         author="Przemyslaw Decewicz",
         author_email="p.decewicz@uw.edu.pl",
-        description="SigMa mapping phage signals on bacterial genomes for iterative prophage identification.",
+        description="SigMa - mapping phage signals on bacterial genomes for iterative prophage identification.",
         long_description=long_description,
         long_description_content_type="text/markdown",
         url="https://github.com/pdec/SigMa",

@@ -159,7 +159,7 @@ def main():
         '--nt_length', help='Minimum nucleotide length [%(default)i]', default=1000, metavar=' ', type=int)
     # aa-based
     parser_search.add_argument(
-        '--aa_pident', help='MMseqs2 minimum amino acid identity [%(default).2f]', default=0.75, metavar=' ', type=int)
+        '--aa_pident', help='MMseqs2 minimum amino acid identity [%(default).2f]', default=0.75, metavar=' ', type=float)
     parser_search.add_argument(
         '--aa_evalue', help='MMseqs2 maximum amino acid e-value [%(default)1.0e]', default=1e-5, metavar=' ', type=float)
     parser_search.add_argument(
